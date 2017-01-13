@@ -1,0 +1,5 @@
+## Interface: 50001
+## Title: NugReady
+## SavedVariablesPerCharacter: NugReadyDB
+## Author: d87
+nugready.lua
