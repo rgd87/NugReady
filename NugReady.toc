@@ -2,4 +2,5 @@
 ## Title: NugReady
 ## SavedVariablesPerCharacter: NugReadyDB
 ## Author: d87
+## OptionalDeps: Masque
 nugready.lua

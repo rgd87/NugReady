@@ -27,6 +27,9 @@ local function SetupDefaults(t, defaults)
 end
 
 
+local Masque = LibStub("Masque", true)
+local MasqueIcon
+
 
 local spellset = {}
 function NugReady:LOAD_CLASS_SETTINGS()
@@ -97,8 +100,23 @@ local function GetDebuff(unit, spellID)
     return expirationTime - GetTime(), count
 end
 
+local function GetSpellCooldownNoCharge(spellID)
+    local startTime, duration, enabled = GetSpellCooldown(spellID)
+    local charges, maxCharges, chargeStart, chargeDuration = GetSpellCharges(spellID)
+    if charges and charges ~= maxCharges then
+        startTime = chargeStart
+        duration = chargeDuration
+    end
+    return startTime, duration, enabled
+end
+
 local function GetCooldown(spellID)
     local startTime, duration, enabled = GetSpellCooldown(spellID)
+    local charges, maxCharges, chargeStart, chargeDuration = GetSpellCharges(spellID)
+    if charges and charges ~= maxCharges then
+        startTime = chargeStart
+        duration = chargeDuration
+    end
     if duration == 0 then return 0 end
     local expirationTime = startTime + duration
     return expirationTime - GetTime(), duration
@@ -118,7 +136,7 @@ local IsUsableSpell = IsUsableSpell
 
 READYSPELL = {}
 local IsReadySpell = function(spellID)
-    local startTime, duration, enabled = GetSpellCooldown(spellID)
+    local startTime, duration, enabled = GetSpellCooldownNoCharge(spellID)
     if duration == 0 then return true end
 
     local remains = (startTime + duration) - GetTime()
@@ -153,14 +171,18 @@ local RagingBlow = 85288
 local Bloodthirst = 23881
 local DragonRoar = 118000
 local FuriousSlash = 100130
+local Whirlwind = 190411
 
 local function Fury()
     local isEnraged = IsEnraged()
-    local rage = UnitPower("player", "RAGE")
+    local rage = UnitPower("player")
+    local isWreckingBallOn = (GetBuff("player", 215570) ~= nil)
 
-    if IsAvailable(DragonRoar) then
-        return DragonRoar
-    elseif IsAvailable(Rampage) and (not isEnraged or rage == 100) then
+    -- if IsAvailable(DragonRoar) then
+        -- return DragonRoar
+    -- else
+    -- if IsAvailable(Rampage) and (not isEnraged or rage == 100) then
+    if IsAvailable(Rampage) and rage == 100 then
         return Rampage
     elseif not isEnraged and IsReadySpell(Bloodthirst) then
         return Bloodthirst
@@ -168,10 +190,12 @@ local function Fury()
         return OdynsFury
     elseif IsUsableSpell(Execute) and isEnraged then
         return Execute
-    elseif IsAvailable(RagingBlow) then
-        return RagingBlow
     elseif IsAvailable(Bloodthirst) then
         return Bloodthirst
+    elseif IsAvailable(RagingBlow) then
+        return RagingBlow
+    elseif isWreckingBallOn and IsAvailable(Whirlwind) then
+        return Whirlwind
     else
         return FuriousSlash
     end
@@ -182,26 +206,40 @@ local Warbreaker = 209577
 local MortalStrike = 12294
 local FocusedRage = 207982
 local Slam = 1464
+local Rend = 772
 
 local function Arms()
-    local _, FocusedRageStacks = GetBuff("player", FocusedRage)
-    local MortalStrikeCooldown = GetCooldown(MortalStrike)
+    -- local _, FocusedRageStacks = GetBuff("player", FocusedRage)
+    -- local MortalStrikeCooldown = GetCooldown(MortalStrike)
 
+    local IsShatteredDefensesOn = (GetBuff("player", 209706) ~= nil)
     local IsColossusSmashApplied = false
+    local ExecutionerPrecision = 0
+    local RendRemains = 0
+    local ExecutePhase = IsAvailable(Execute)
     if UnitExists("target") then
-        local remains = GetDebuff("target", 208086)
-        IsColossusSmashApplied = remains or 0 > 1.5
+        ExecutionerPrecision = select(2, GetDebuff("target", 242188))
+        IsColossusSmashApplied = GetDebuff("target", 208086) or 0 > 1.5
+        RendRemains = GetDebuff("target", Rend) or 0
     end
 
-    if IsAvailable(ColossusSmash) and not IsColossusSmashApplied then
+    if RendRemains == 0 and not ExecutePhase then
+        return Rend
+    elseif IsAvailable(ColossusSmash) and not IsShatteredDefensesOn then
         return ColossusSmash
-    elseif IsAvailable(Warbreaker) and not IsColossusSmashApplied and MortalStrikeCooldown < 2.5 then
+    elseif IsAvailable(Warbreaker) and not IsColossusSmashApplied and not IsShatteredDefensesOn then
         return Warbreaker
-    elseif IsReadySpell(MortalStrike) then
+    elseif IsReadySpell(MortalStrike) and ExecutionerPrecision == 2 and IsShatteredDefensesOn then
         return MortalStrike
-    elseif IsAvailable(FocusedRage) and FocusedRageStacks < 3 then
-        return FocusedRage
-    elseif IsAvailable(Slam) and FocusedRageStacks == 3 then
+    elseif IsAvailable(Execute) then
+        return Execute
+    elseif IsReadySpell(MortalStrike) and IsShatteredDefensesOn then
+        return MortalStrike
+    elseif RendRemains < 2.4 and not ExecutePhase then
+        return Rend
+    -- elseif IsAvailable(FocusedRage) and FocusedRageStacks < 3 then
+        -- return FocusedRage
+    elseif IsAvailable(Slam) and not ExecutePhase then
         return Slam
     else
         return 7812
@@ -235,12 +273,12 @@ local function Windwalker()
         return StrikeOfTheWindlord
     elseif IsAvailableInCombo(WhirlingDragonPunch) then
         return WhirlingDragonPunch
+    elseif IsAvailableInCombo(BlackoutKick) then
+        return BlackoutKick
     elseif IsAvailableInCombo(TigerPalm) and chi <= 3 then
         return TigerPalm
     elseif IsAvailableInCombo(RisingSunKick) then
         return RisingSunKick
-    elseif IsAvailableInCombo(BlackoutKick) then
-        return BlackoutKick
     else
         return TigerPalm
     end
@@ -248,7 +286,9 @@ end
 
 function NugReady.UNIT_SPELLCAST_SUCCEEDED(self, event, unit, spell, rank, lineID, spellID)
     -- print(event, unit, spell, rank, lineID, spellID)
-    LastUsedAbility = spellID
+    if IsPlayerSpell(spellID) then
+        LastUsedAbility = spellID
+    end
 end
 
 
@@ -295,7 +335,6 @@ local function BrewmasterBlackout()
         return BreathOfFire
     elseif IsAvailable(TigerPalm) then
         local KSEnergyTime = ( 45 - (energy - 25) ) / regen
-        -- print(KegSmashCD, KSEnergyTime)
         if KegSmashCD < KSEnergyTime then
             return KegSmash
         else
@@ -316,20 +355,58 @@ local function Brewmaster()
     local regen = (100+haste)/10  -- energy per second
 
     local KegSmashCD = GetCooldown(KegSmash)
+    local KegSmashCharges, KegSmashMaxCharges = GetSpellCharges(KegSmash)
     -- local charges, maxcharges = GetSpellCharges(IronskinBrew)
 
     if IsReadySpell(KegSmash) then
         return KegSmash
-    elseif IsAvailable(TigerPalm) and energy > 55 then
-        return TigerPalm
-    -- elseif KegSmashCD < 1.5 and IsBlackoutComboOn then
-    --     return KegSmash, 3
     elseif IsReadySpell(BlackoutStrike) then
         return BlackoutStrike
+    elseif IsAvailable(BreathOfFire) then
+        return BreathOfFire
+    elseif IsAvailable(RushingJadeWind) then
+        return RushingJadeWind
+    -- elseif IsAvailable(TigerPalm) and energy > 55 then
+        -- return TigerPalm
+    elseif IsAvailable(TigerPalm) then
+        local KSEnergyTime = ( 45 - (energy - 25) ) / regen
+        if KegSmashCD < KSEnergyTime then
+            return KegSmash
+        else
+            return TigerPalm
+        end
+    
     -- elseif IsReadySpell(BreathOfFire) then
         -- return BreathOfFire
         -- elseif IsAvailable(RushingJadeWind) then
             -- return RushingJadeWind
+    else
+        return 7812
+    end
+end
+
+local Zeal = 217020
+local TemplarsVerdict = 85256
+local BladeOfJustice = 184575
+local Judgement = 20271
+
+local function Retribution()
+    local IsJudgementOn = GetDebuff("target", 197277)
+    local hp = UnitPower("player", SPELL_POWER_HOLY_POWER)
+    -- local KegSmashCD = GetCooldown(KegSmash)
+    local ZealCharges = GetSpellCharges(Zeal)
+    -- local charges, maxcharges = GetSpellCharges(IronskinBrew)
+
+    if hp <= 4 and ZealCharges >= 2 then
+        return Zeal
+    elseif hp <= 3 and IsReadySpell(BladeOfJustice) then
+        return BladeOfJustice
+    elseif IsJudgementOn and hp >= 3 then
+        return TemplarsVerdict
+    elseif hp <= 4 and ZealCharges >= 1 then
+        return Zeal
+    elseif IsReadySpell(Judgement) then
+        return Judgement
     else
         return 7812
     end
@@ -478,6 +555,19 @@ function NugReady:SPELLS_CHANGED()
             else
                 DecideCurrentAction = Brewmaster
             end
+        else
+            self.disabled = true
+            self:Hide()
+        end
+    elseif class == "PALADIN" then
+        if spec == 3 then
+            DecideCurrentAction = Retribution
+        -- elseif spec == 1 then
+        --     if IsPlayerSpell(196736) then
+        --         DecideCurrentAction = BrewmasterBlackout
+        --     else
+        --         DecideCurrentAction = Brewmaster
+        --     end
         else
             self.disabled = true
             self:Hide()
