@@ -284,7 +284,7 @@ local function Windwalker()
     end
 end
 
-function NugReady.UNIT_SPELLCAST_SUCCEEDED(self, event, unit, spell, rank, lineID, spellID)
+function NugReady.UNIT_SPELLCAST_SUCCEEDED(self, event, unit, lineID, spellID)
     -- print(event, unit, spell, rank, lineID, spellID)
     if IsPlayerSpell(spellID) then
         LastUsedAbility = spellID
