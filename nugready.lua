@@ -88,14 +88,25 @@ function NugReady:SPELL_UPDATE_COOLDOWN()
 end
 
 
+local function FindAura(unit, spellID, filter)
+    for i=1, 100 do
+        -- rank will be removed in bfa
+        local name, icon, count, debuffType, duration, expirationTime, unitCaster, canStealOrPurge, nameplateShowPersonal, auraSpellID = UnitAura(unit, i, filter)
+        if not name then return nil end
+        if spellID == auraSpellID then
+            return name, icon, count, debuffType, duration, expirationTime, unitCaster, canStealOrPurge, nameplateShowPersonal, auraSpellID
+        end
+    end
+end
+
 local function GetBuff(unit, spellID)
-    local name, _,_, count, _, duration, expirationTime, caster, _,_, aura_spellID = UnitAura(unit, GetSpellInfo(spellID), nil, "HELPFUL")
+    local name, _, count, _, duration, expirationTime, caster, _,_, aura_spellID = FindAura(unit, spellID, "HELPFUL")
     if not name then return nil, 0 end
     return expirationTime - GetTime(), count
 end
 
 local function GetDebuff(unit, spellID)
-    local name, _,_, count, _, duration, expirationTime, caster, _,_, aura_spellID = UnitAura(unit, GetSpellInfo(spellID), nil, "HARMFUL")
+    local name, _, count, _, duration, expirationTime, caster, _,_, aura_spellID = FindAura(unit, spellID, "HARMFUL")
     if not name then return nil, 0 end
     return expirationTime - GetTime(), count
 end
@@ -152,52 +163,97 @@ local IsReadySpell = function(spellID)
     return false
 end
 
+local IsReadySpell2 = function(spellID) -- Treats spells that still have charges as ready
+    local startTime, duration, enabled = GetSpellCooldown(spellID)
+    if duration == 0 then return true end
+    local remains = (startTime + duration) - GetTime()
+    if remains <= GCD+0.05 then return true end
+    return false
+end
+
 ISREADYSPELL = IsReadySpell
 
-function IsAvailable(spellID)
+local function IsAvailable(spellID)
     return IsUsableSpell(spellID) and IsReadySpell(spellID)
+end
+
+local function IsAvailable2(spellID)
+    return IsUsableSpell(spellID) and IsReadySpell2(spellID)
 end
 
 local Enrage = 184362
 local function IsEnraged()
-    local name = UnitAura("player", GetSpellInfo(Enrage), nil, "HELPFUL")
+    local name = FindAura("player", Enrage, "HELPFUL")
     return name
 end
 
 local Rampage = 184367
 local OdynsFury = 205545
 local Execute = 5308
+local FuryExecute = 280735
 local RagingBlow = 85288
 local Bloodthirst = 23881
 local DragonRoar = 118000
 local FuriousSlash = 100130
 local Whirlwind = 190411
+local WhirlwindBuff = 85739
+
+local LastTimeWhirlwindWasPresent = 0
 
 local function Fury()
     local isEnraged = IsEnraged()
+    local IsWhirlwindBuffOn = FindAura("player", WhirlwindBuff, "HELPFUL")
+
     local rage = UnitPower("player")
-    local isWreckingBallOn = (GetBuff("player", 215570) ~= nil)
+
+    local isExecutePhase = false
+    if UnitExists('target') then
+        local h, hm = UnitHealth("target"), UnitHealthMax("target")
+        if hm == 0 then hm = 1 end
+        isExecutePhase = h/hm < 0.35
+    end
+
+    if IsWhirlwindBuffOn then
+        LastTimeWhirlwindWasPresent = GetTime()
+    end
+
+    local isAOE = (LastTimeWhirlwindWasPresent + 5 > GetTime())
+
+    -- local isWreckingBallOn = (GetBuff("player", 215570) ~= nil)
+
+
+
+    -- local startTime, duration, enabled = GetSpellCooldown(RagingBlow)
+    -- local charges, maxCharges, chargeStart, chargeDuration = GetSpellCharges(RagingBlow)
+    -- local startTime1, duration1, enabled1 = GetSpellCooldownNoCharge(RagingBlow)
+    -- print("-------------------------------------------")
+    -- print("GetSpellCooldown", startTime, duration, enabled )
+    -- print("GetSpellCooldownNoCharge", startTime1, duration1, enabled1 )
+    -- print("GetSpellCharges", charges, maxCharges, chargeStart, chargeDuration )
+    
+
 
     -- if IsAvailable(DragonRoar) then
         -- return DragonRoar
     -- else
     -- if IsAvailable(Rampage) and (not isEnraged or rage == 100) then
-    if IsAvailable(Rampage) and rage == 100 then
+    if isAOE and not IsWhirlwindBuffOn then
+        return Whirlwind
+    elseif IsAvailable(Rampage) then
         return Rampage
+    elseif isExecutePhase and IsAvailable(FuryExecute) then
+        return FuryExecute
     elseif not isEnraged and IsReadySpell(Bloodthirst) then
         return Bloodthirst
-    elseif IsAvailable(OdynsFury) then
-        return OdynsFury
-    elseif IsUsableSpell(Execute) and isEnraged then
-        return Execute
+    elseif IsUsableSpell(FuryExecute) and IsAvailable(FuryExecute) and isEnraged then
+        return FuryExecute
     elseif IsAvailable(Bloodthirst) then
         return Bloodthirst
-    elseif IsAvailable(RagingBlow) then
+    elseif IsAvailable2(RagingBlow) then
         return RagingBlow
-    elseif isWreckingBallOn and IsAvailable(Whirlwind) then
-        return Whirlwind
+        -- return FuriousSlash
     else
-        return FuriousSlash
+        return 7812
     end
 end
 
@@ -247,7 +303,7 @@ local function Arms()
 end
 
 local FistsOfFury = 113656
-local StrikeOfTheWindlord = 205320
+local FistOfTheWhiteTiger = 261947
 local WhirlingDragonPunch = 152175
 local TigerPalm = 100780
 local RisingSunKick = 107428
@@ -269,8 +325,8 @@ local function Windwalker()
 
     if IsAvailableInCombo(FistsOfFury) then
         return FistsOfFury
-    elseif IsAvailableInCombo(StrikeOfTheWindlord) then
-        return StrikeOfTheWindlord
+    elseif IsAvailableInCombo(FistOfTheWhiteTiger) then
+        return FistOfTheWhiteTiger
     elseif IsAvailableInCombo(WhirlingDragonPunch) then
         return WhirlingDragonPunch
     elseif IsAvailableInCombo(BlackoutKick) then
@@ -540,8 +596,8 @@ function NugReady:SPELLS_CHANGED()
     if class == "WARRIOR" then
         if spec == 2 then
             DecideCurrentAction = Fury
-        elseif spec == 1 then
-            DecideCurrentAction = Arms
+        -- elseif spec == 1 then
+            -- DecideCurrentAction = Arms
         else
             self.disabled = true
             self:Hide()
