@@ -108,7 +108,7 @@ end
 local function GetDebuff(unit, spellID)
     local name, _, count, _, duration, expirationTime, caster, _,_, aura_spellID = FindAura(unit, spellID, "HARMFUL")
     if not name then return nil, 0 end
-    return expirationTime - GetTime(), count
+    return expirationTime - GetTime(), count, duration
 end
 
 local function GetSpellCooldownNoCharge(spellID)
@@ -152,12 +152,12 @@ local IsReadySpell = function(spellID)
 
     local remains = (startTime + duration) - GetTime()
 
-    if (spellID == 205523) then
-        READYSPELL.name = GetSpellInfo(spellID)
-        READYSPELL.remains = remains
-        READYSPELL.gcd = GCD
-        READYSPELL.condition = remains <= GCD
-    end
+    -- if (spellID == 205523) then
+    --     READYSPELL.name = GetSpellInfo(spellID)
+    --     READYSPELL.remains = remains
+    --     READYSPELL.gcd = GCD
+    --     READYSPELL.condition = remains <= GCD
+    -- end
 
     if remains <= GCD+0.05 then return true end
     return false
@@ -405,25 +405,35 @@ local function BrewmasterBlackout()
     end
 end
 
+
+local LastTimeUsedRJW = 0
+
 local function Brewmaster()
     local energy = UnitPower("player")
     local haste = UnitSpellHaste("player")
     local regen = (100+haste)/10  -- energy per second
 
     local KegSmashCD = GetCooldown(KegSmash)
-    local KegSmashCharges, KegSmashMaxCharges = GetSpellCharges(KegSmash)
+    -- local BlackoutCD = GetCooldown(BlackoutStrike)
+    -- local KegSmashCharges, KegSmashMaxCharges = GetSpellCharges(KegSmash)
     -- local charges, maxcharges = GetSpellCharges(IronskinBrew)
+
+    -- if LastUsedAbility == RushingJadeWind then
+    --     LastTimeUsedRJW = GetTime()
+    -- end
+
+    -- local isAOE = (LastTimeUsedRJW + 13 > GetTime())
 
     if IsReadySpell(KegSmash) then
         return KegSmash
-    elseif IsReadySpell(BlackoutStrike) then
+    elseif IsAvailable(TigerPalm) and energy >= 75 then
+        return TigerPalm
+    elseif IsAvailable(BlackoutStrike) then
         return BlackoutStrike
     elseif IsAvailable(BreathOfFire) then
         return BreathOfFire
     elseif IsAvailable(RushingJadeWind) then
         return RushingJadeWind
-    -- elseif IsAvailable(TigerPalm) and energy > 55 then
-        -- return TigerPalm
     elseif IsAvailable(TigerPalm) then
         local KSEnergyTime = ( 45 - (energy - 25) ) / regen
         if KegSmashCD < KSEnergyTime then
@@ -463,6 +473,59 @@ local function Retribution()
         return Zeal
     elseif IsReadySpell(Judgement) then
         return Judgement
+    else
+        return 7812
+    end
+end
+
+local Rake = 1822
+local RakeDebuff = 155722
+local Rip = 1079
+local Shred = 5221
+local BrutalSlash = 202028
+local FerociousBite = 22568
+local Bloodtalons = 145152
+local PredatorySwiftness = 69369
+local Regrowth = 8936
+local TigersFury = 5217
+
+
+local function Feral()
+    local RipRemains, _, RipDuration = GetDebuff("target", Rip)
+    local RakeRemains, _, RakeDuration = GetDebuff("target", RakeDebuff)
+    local RipRemains = RipRemains or 0
+    local RakeRemains = RakeRemains or 0
+    local RakeRefreshWindow = (RakeDuration or 0)*0.3
+    local RipRefreshWindow = (RipDuration or 0)*0.3
+    local isPredatorySwiftnessOn = GetBuff("player", PredatorySwiftness)
+    local _, BloodtalonsCount = GetBuff("player", Bloodtalons)
+    local BrutalSlashCharges, BrutalSlashMaxCharges = GetSpellCharges(BrutalSlash)
+    local cp = UnitPower("player", Enum.PowerType.ComboPoints )
+    local energy = UnitPower("player")
+    local haste = UnitSpellHaste("player")
+    local regen = (100+haste)/10  -- energy per second
+    local ttc = (90-energy)/regen
+
+    local RakeNeedsRefreshing = RakeRemains <= RakeRefreshWindow -- + ttc - 1
+    local RakeNeedsRefreshingALittle = RakeNeedsRefreshing  and RakeRemains > 2.5
+    local RipNeedsRefreshing =  RipRemains <= RipRefreshWindow + ttc - 1
+
+    if cp >= (RakeNeedsRefreshing and 4 or 5) and isPredatorySwiftnessOn then
+        return Regrowth
+    elseif energy <= 30 and IsAvailable(TigersFury) then
+        return TigersFury
+    elseif RipNeedsRefreshing and cp == 5 then
+        return Rip
+    elseif RakeNeedsRefreshingALittle and cp == 2 or cp == 3 then
+        return Shred
+    elseif RakeNeedsRefreshing and cp <= 4 then
+        return Rake
+    elseif RipRemains > 10 and cp == 5 then
+        return FerociousBite
+    elseif BrutalSlashCharges >= 1 and IsAvailable2(BrutalSlash) then
+        return BrutalSlash
+    elseif IsAvailable(Shred) then
+        return Shred
     else
         return 7812
     end
@@ -611,6 +674,13 @@ function NugReady:SPELLS_CHANGED()
             else
                 DecideCurrentAction = Brewmaster
             end
+        else
+            self.disabled = true
+            self:Hide()
+        end
+    elseif class == "DRUID" then
+        if spec == 2 then
+            DecideCurrentAction = Feral
         else
             self.disabled = true
             self:Hide()
