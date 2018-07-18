@@ -489,6 +489,9 @@ local PredatorySwiftness = 69369
 local Regrowth = 8936
 local TigersFury = 5217
 
+local math_max = math.max
+local ENUM_CP = Enum.PowerType.ComboPoints
+
 
 local function Feral()
     local RipRemains, _, RipDuration = GetDebuff("target", Rip)
@@ -500,15 +503,15 @@ local function Feral()
     local isPredatorySwiftnessOn = GetBuff("player", PredatorySwiftness)
     local _, BloodtalonsCount = GetBuff("player", Bloodtalons)
     local BrutalSlashCharges, BrutalSlashMaxCharges = GetSpellCharges(BrutalSlash)
-    local cp = UnitPower("player", Enum.PowerType.ComboPoints )
+    local cp = UnitPower("player", ENUM_CP )
     local energy = UnitPower("player")
     local haste = UnitSpellHaste("player")
     local regen = (100+haste)/10  -- energy per second
     local ttc = (90-energy)/regen
 
-    local RakeNeedsRefreshing = RakeRemains <= RakeRefreshWindow -- + ttc - 1
-    local RakeNeedsRefreshingALittle = RakeNeedsRefreshing  and RakeRemains > 2.5
-    local RipNeedsRefreshing =  RipRemains <= RipRefreshWindow + ttc - 1
+    local RakeNeedsRefreshing = RakeRemains <= RakeRefreshWindow + math_max(ttc - 2, 0)
+    local RakeNeedsRefreshingALittle = RakeNeedsRefreshing  and RakeRemains > 3
+    local RipNeedsRefreshing =  RipRemains <= RipRefreshWindow + math_max(ttc - 2, 0)
 
     if cp >= (RakeNeedsRefreshing and 4 or 5) and isPredatorySwiftnessOn then
         return Regrowth
@@ -522,7 +525,7 @@ local function Feral()
         return Rake
     elseif RipRemains > 10 and cp == 5 then
         return FerociousBite
-    elseif BrutalSlashCharges >= 1 and IsAvailable2(BrutalSlash) then
+    elseif BrutalSlashCharges >= 2 and IsAvailable2(BrutalSlash) then
         return BrutalSlash
     elseif IsAvailable(Shred) then
         return Shred
