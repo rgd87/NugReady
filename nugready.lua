@@ -15,6 +15,7 @@ local UnitAura = UnitAura
 local UnitExists = UnitExists
 local GetSpellCooldown = GetSpellCooldown
 local GetSpellCharges = GetSpellCharges
+local IsPlayerSpell = IsPlayerSpell
 
 
 local defaults = {
@@ -517,55 +518,78 @@ local Bloodtalons = 145152
 local PredatorySwiftness = 69369
 local Regrowth = 8936
 local TigersFury = 5217
+local SavageRoar = 52610
 
 local math_max = math.max
 local ENUM_CP = Enum.PowerType.ComboPoints
 
 
-local function Feral()
-    local RipRemains, _, RipDuration = GetDebuff("target", Rip)
-    local RakeRemains, _, RakeDuration = GetDebuff("target", RakeDebuff)
-    local RipRemains = RipRemains or 0
-    local RakeRemains = RakeRemains or 0
-    local RakeRefreshWindow = (RakeDuration or 0)*0.3
-    local RipRefreshWindow = (RipDuration or 0)*0.3
-    local isPredatorySwiftnessOn = GetBuff("player", PredatorySwiftness)
-    local _, BloodtalonsCount = GetBuff("player", Bloodtalons)
-    local BrutalSlashCharges, BrutalSlashMaxCharges = GetSpellCharges(BrutalSlash)
-    local cp = UnitPower("player", ENUM_CP )
-    local energy = UnitPower("player")
-    local haste = UnitSpellHaste("player")
-    local regen = (100+haste)/10  -- energy per second
-    local ttc = (90-energy)/regen
-    local isExecutePhase = false
-    if UnitExists('target') then
-        local h, hm = UnitHealth("target"), UnitHealthMax("target")
-        if hm == 0 then hm = 1 end
-        isExecutePhase = h/hm < 0.25
-    end
+local function FeralSetup()
+    local isSavageRoarKnown = IsPlayerSpell(SavageRoar)
+    local SavageRoarRefreshWindow = 36*0.3
+    local SavageRoarRemains, SavageRoarNeedsRefreshing
 
-    local RakeNeedsRefreshing = RakeRemains <= RakeRefreshWindow + math_max(ttc - 2, 0)
-    local RakeNeedsRefreshingALittle = RakeNeedsRefreshing  and RakeRemains > 2.5
-    local RipNeedsRefreshing =  RipRemains <= RipRefreshWindow + math_max(ttc - 2, 0)
+    local isSabertoothKnown = IsPlayerSpell(202031)
 
-    if cp >= (RakeNeedsRefreshing and 4 or 5) and isPredatorySwiftnessOn then
-        return Regrowth
-    elseif energy <= 30 and IsAvailable(TigersFury) then
-        return TigersFury
-    elseif RipNeedsRefreshing and cp == 5 then
-        return isExecutePhase and FerociousBite or Rip
-    elseif RakeNeedsRefreshingALittle and cp == 2 or cp == 3 then
-        return Shred
-    elseif RakeNeedsRefreshing and cp <= 4 then
-        return Rake
-    elseif RipRemains > 10 and cp == 5 then
-        return FerociousBite
-    elseif BrutalSlashCharges >= 2 and IsAvailable2(BrutalSlash) then
-        return BrutalSlash
-    elseif IsAvailable(Shred) then
-        return Shred
-    else
-        return 7812
+    local isJaggedWounds = IsPlayerSpell(202032)
+    local jwm = isJaggedWounds and 0.8 or 1
+    local RakeRefreshWindow = 15*jwm*0.3
+    local RipRefreshWindow = 24*jwm*0.3
+
+    local isBrutalSlashKnown = IsPlayerSpell(BrutalSlash)
+    local BrutalSlashCharges, BrutalSlashMaxCharges
+
+    return function()
+        local RipRemains = GetDebuff("target", Rip) or 0
+        local RakeRemains = GetDebuff("target", RakeDebuff) or 0
+        local isPredatorySwiftnessOn = GetBuff("player", PredatorySwiftness)
+        -- local _, BloodtalonsCount = GetBuff("player", Bloodtalons)
+        if isSavageRoarKnown then
+            SavageRoarRemains = GetBuff("player", SavageRoar) or 0
+            SavageRoarNeedsRefreshing = SavageRoarRemains <= SavageRoarRefreshWindow
+        end
+
+        if isBrutalSlashKnown then
+            BrutalSlashCharges, BrutalSlashMaxCharges = GetSpellCharges(BrutalSlash)
+        end
+
+        local cp = UnitPower("player", ENUM_CP )
+        local energy = UnitPower("player")
+        local haste = UnitSpellHaste("player")
+        local regen = (100+haste)/10  -- energy per second
+        local ttc = (90-energy)/regen
+        local isExecutePhase = false
+        if UnitExists('target') then
+            local h, hm = UnitHealth("target"), UnitHealthMax("target")
+            if hm == 0 then hm = 1 end
+            isExecutePhase = h/hm < 0.25
+        end
+
+        local RakeNeedsRefreshing = RakeRemains <= RakeRefreshWindow + math_max(ttc - 2, 0)
+        local RakeNeedsRefreshingALittle = RakeNeedsRefreshing  and RakeRemains > 2.5
+        local RipNeedsRefreshing =  RipRemains <= RipRefreshWindow + math_max(ttc - 2, 0)
+
+        if cp >= (RakeNeedsRefreshing and 4 or 5) and isPredatorySwiftnessOn then
+            return Regrowth
+        elseif energy <= 30 and IsAvailable(TigersFury) then
+            return TigersFury
+        elseif RipNeedsRefreshing and cp == 5 then
+            return (isExecutePhase or isSabertoothKnown) and FerociousBite or Rip
+        elseif RakeNeedsRefreshingALittle and cp == 2 or cp == 3 then
+            return Shred
+        elseif RakeNeedsRefreshing and cp <= 4 then
+            return Rake
+        elseif isSavageRoarKnown and SavageRoarNeedsRefreshing and cp == 5 then
+            return SavageRoar
+        elseif cp == 5 then
+            return FerociousBite
+        elseif isBrutalSlashKnown and BrutalSlashCharges >= 2 and IsAvailable2(BrutalSlash) then
+            return BrutalSlash
+        elseif IsAvailable(Shred) then
+            return Shred
+        else
+            return 7812
+        end
     end
 end
 
@@ -718,7 +742,7 @@ function NugReady:SPELLS_CHANGED()
         end
     elseif class == "DRUID" then
         if spec == 2 then
-            DecideCurrentAction = Feral
+            DecideCurrentAction = FeralSetup()
         else
             self.disabled = true
             self:Hide()
