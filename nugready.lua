@@ -519,6 +519,7 @@ local PredatorySwiftness = 69369
 local Regrowth = 8936
 local TigersFury = 5217
 local SavageRoar = 52610
+local FeralFrenzy = 274837
 
 local math_max = math.max
 local ENUM_CP = Enum.PowerType.ComboPoints
@@ -538,6 +539,10 @@ local function FeralSetup()
 
     local isBrutalSlashKnown = IsPlayerSpell(BrutalSlash)
     local BrutalSlashCharges, BrutalSlashMaxCharges
+
+    local isFeralFrenzyKnown = IsPlayerSpell(FeralFrenzy)
+
+    local isBloodtalonsKnown = IsPlayerSpell(155672)
 
     return function()
         local RipRemains = GetDebuff("target", Rip) or 0
@@ -568,23 +573,38 @@ local function FeralSetup()
         local RakeNeedsRefreshing = RakeRemains <= RakeRefreshWindow + math_max(ttc - 2, 0)
         local RakeNeedsRefreshingALittle = RakeNeedsRefreshing  and RakeRemains > 2.5
         local RipNeedsRefreshing =  RipRemains <= RipRefreshWindow + math_max(ttc - 2, 0)
+        local RipNeedsRefreshingWithTigersFury = RipRemains <= RipRefreshWindow + 6
 
-        if cp >= (RakeNeedsRefreshing and 4 or 5) and isPredatorySwiftnessOn then
+        if isBloodtalonsKnown and cp >= (RakeNeedsRefreshing and 4 or 5) and isPredatorySwiftnessOn then
             return Regrowth
-        elseif energy <= 30 and IsAvailable(TigersFury) then
+
+        elseif energy <= 30 and IsAvailable(TigersFury) and RipNeedsRefreshingWithTigersFury then
             return TigersFury
+
+        elseif isFeralFrenzyKnown and cp == 0 and IsAvailable(FeralFrenzy) then
+            return FeralFrenzy
+
         elseif RipNeedsRefreshing and cp == 5 then
             return (isExecutePhase or isSabertoothKnown) and FerociousBite or Rip
+
         elseif RakeNeedsRefreshingALittle and cp == 2 or cp == 3 then
             return Shred
+
         elseif RakeNeedsRefreshing and cp <= 4 then
             return Rake
+
         elseif isSavageRoarKnown and SavageRoarNeedsRefreshing and cp == 5 then
             return SavageRoar
+
+
         elseif cp == 5 then
             return FerociousBite
+
+
         elseif isBrutalSlashKnown and BrutalSlashCharges >= 2 and IsAvailable2(BrutalSlash) then
             return BrutalSlash
+
+
         elseif IsAvailable(Shred) then
             return Shred
         else
