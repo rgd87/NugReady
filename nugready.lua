@@ -7,6 +7,15 @@ end)
 
 NugReady:RegisterEvent("ADDON_LOADED")
 
+local UnitPower = UnitPower
+local UnitPowerMax = UnitPowerMax
+local UnitHealth = UnitHealth
+local UnitHealthMax = UnitHealthMax
+local UnitAura = UnitAura
+local GetSpellCooldown = GetSpellCooldown
+local GetSpellCharges = GetSpellCharges
+
+
 local defaults = {
     point = "CENTER",
     posX = 0, posY = 0,
@@ -508,6 +517,12 @@ local function Feral()
     local haste = UnitSpellHaste("player")
     local regen = (100+haste)/10  -- energy per second
     local ttc = (90-energy)/regen
+    local isExecutePhase = false
+    if UnitExists('target') then
+        local h, hm = UnitHealth("target"), UnitHealthMax("target")
+        if hm == 0 then hm = 1 end
+        isExecutePhase = h/hm < 0.25
+    end
 
     local RakeNeedsRefreshing = RakeRemains <= RakeRefreshWindow + math_max(ttc - 2, 0)
     local RakeNeedsRefreshingALittle = RakeNeedsRefreshing  and RakeRemains > 3
@@ -518,7 +533,7 @@ local function Feral()
     elseif energy <= 30 and IsAvailable(TigersFury) then
         return TigersFury
     elseif RipNeedsRefreshing and cp == 5 then
-        return Rip
+        return isExecutePhase and FerociousBite or Rip
     elseif RakeNeedsRefreshingALittle and cp == 2 or cp == 3 then
         return Shred
     elseif RakeNeedsRefreshing and cp <= 4 then
