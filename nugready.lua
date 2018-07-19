@@ -12,6 +12,7 @@ local UnitPowerMax = UnitPowerMax
 local UnitHealth = UnitHealth
 local UnitHealthMax = UnitHealthMax
 local UnitAura = UnitAura
+local UnitExists = UnitExists
 local GetSpellCooldown = GetSpellCooldown
 local GetSpellCharges = GetSpellCharges
 
@@ -317,6 +318,7 @@ local WhirlingDragonPunch = 152175
 local TigerPalm = 100780
 local RisingSunKick = 107428
 local BlackoutKick = 100784
+local ENUM_CHI = Enum.PowerType.Chi
 
 local LastUsedAbility
 local IsAvailableInCombo = function(spellID)
@@ -327,21 +329,39 @@ local IsAvailableInCombo = function(spellID)
     end
 end
 
+local IsReadyInCombo = function(spellID)
+    if spellID == LastUsedAbility then
+        return false
+    else
+        return IsReadySpell(spellID)
+    end
+end
+
+
 local function Windwalker()
-    local chi = UnitPower("player", SPELL_POWER_CHI)
+    local chi = UnitPower("player", ENUM_CHI)
+    local chimax = UnitPowerMax("player", ENUM_CHI)
     local energy = UnitPower("player")
     local energyMax = UnitPowerMax("player")
+    local WDPSoon = GetCooldown(WhirlingDragonPunch) < 6
+    local FOFSoon = GetCooldown(WhirlingDragonPunch) < 3
 
     if IsAvailableInCombo(FistsOfFury) then
         return FistsOfFury
-    elseif IsAvailableInCombo(FistOfTheWhiteTiger) then
+    elseif IsReadyInCombo(FistOfTheWhiteTiger) and chimax - chi >= 3 then
         return FistOfTheWhiteTiger
+
+    elseif FOFSoon and IsReadyInCombo(TigerPalm) and chi < 3 then  -- don't spend chi on garbage when fof is coming up
+        return TigerPalm
+    elseif WDPSoon and IsAvailableInCombo(RisingSunKick) then -- increased RSK priority when WDP is coming up
+        return RisingSunKick
+
     elseif IsAvailableInCombo(WhirlingDragonPunch) then
         return WhirlingDragonPunch
+    elseif IsReadyInCombo(TigerPalm) and chimax - chi >= 2 then  -- to prioritize spending move below blackout kick
+        return TigerPalm
     elseif IsAvailableInCombo(BlackoutKick) then
         return BlackoutKick
-    elseif IsAvailableInCombo(TigerPalm) and chi <= 3 then
-        return TigerPalm
     elseif IsAvailableInCombo(RisingSunKick) then
         return RisingSunKick
     else
@@ -525,7 +545,7 @@ local function Feral()
     end
 
     local RakeNeedsRefreshing = RakeRemains <= RakeRefreshWindow + math_max(ttc - 2, 0)
-    local RakeNeedsRefreshingALittle = RakeNeedsRefreshing  and RakeRemains > 3
+    local RakeNeedsRefreshingALittle = RakeNeedsRefreshing  and RakeRemains > 2.5
     local RipNeedsRefreshing =  RipRemains <= RipRefreshWindow + math_max(ttc - 2, 0)
 
     if cp >= (RakeNeedsRefreshing and 4 or 5) and isPredatorySwiftnessOn then
