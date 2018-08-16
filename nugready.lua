@@ -347,15 +347,15 @@ local function Windwalker()
     local WDPSoon = GetCooldown(WhirlingDragonPunch) < 6
     local FOFSoon = GetCooldown(WhirlingDragonPunch) < 3
 
-    if IsAvailableInCombo(FistsOfFury) then
-        return FistsOfFury
-    elseif IsReadyInCombo(FistOfTheWhiteTiger) and chimax - chi >= 3 then
+    if IsReadyInCombo(FistOfTheWhiteTiger) and chimax - chi >= 3 then
         return FistOfTheWhiteTiger
 
-    elseif FOFSoon and IsReadyInCombo(TigerPalm) and chi < 3 then  -- don't spend chi on garbage when fof is coming up
-        return TigerPalm
-    elseif WDPSoon and IsAvailableInCombo(RisingSunKick) then -- increased RSK priority when WDP is coming up
+    -- elseif FOFSoon and IsReadyInCombo(TigerPalm) and chi < 3 then  -- don't spend chi on garbage when fof is coming up
+        -- return TigerPalm
+    elseif IsAvailableInCombo(RisingSunKick) then
         return RisingSunKick
+    elseif IsAvailableInCombo(FistsOfFury) then
+        return FistsOfFury
 
     elseif IsAvailableInCombo(WhirlingDragonPunch) then
         return WhirlingDragonPunch
@@ -363,8 +363,6 @@ local function Windwalker()
         return TigerPalm
     elseif IsAvailableInCombo(BlackoutKick) then
         return BlackoutKick
-    elseif IsAvailableInCombo(RisingSunKick) then
-        return RisingSunKick
     else
         return TigerPalm
     end
