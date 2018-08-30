@@ -200,7 +200,6 @@ end
 
 local Rampage = 184367
 local OdynsFury = 205545
-local Execute = 5308
 local FuryExecute = 5308
 local RagingBlow = 85288
 local Bloodthirst = 23881
@@ -211,60 +210,65 @@ local WhirlwindBuff = 85739
 
 local LastTimeWhirlwindWasPresent = 0
 
-local function Fury()
-    local isEnraged = IsEnraged()
-    local IsWhirlwindBuffOn = FindAura("player", WhirlwindBuff, "HELPFUL")
+local function FurySetup()
 
-    local rage = UnitPower("player")
+    local execute_range = IsPlayerSpell(206315) and 0.35 or 0.2 -- Massacre
 
-    local isExecutePhase = false
-    if UnitExists('target') then
-        local h, hm = UnitHealth("target"), UnitHealthMax("target")
-        if hm == 0 then hm = 1 end
-        isExecutePhase = h/hm < 0.20
-    end
+    return function()
+        local isEnraged = IsEnraged()
+        local IsWhirlwindBuffOn = FindAura("player", WhirlwindBuff, "HELPFUL")
 
-    if IsWhirlwindBuffOn then
-        LastTimeWhirlwindWasPresent = GetTime()
-    end
+        local rage = UnitPower("player")
 
-    local isAOE = (LastTimeWhirlwindWasPresent + 5 > GetTime())
+        local isExecutePhase = false
+        if UnitExists('target') then
+            local h, hm = UnitHealth("target"), UnitHealthMax("target")
+            if hm == 0 then hm = 1 end
+            isExecutePhase = h/hm < execute_range
+        end
 
-    -- local isWreckingBallOn = (GetBuff("player", 215570) ~= nil)
+        if IsWhirlwindBuffOn then
+            LastTimeWhirlwindWasPresent = GetTime()
+        end
 
+        local isAOE = (LastTimeWhirlwindWasPresent + 5 > GetTime())
 
-    -- local startTime, duration, enabled = GetSpellCooldown(RagingBlow)
-    -- local charges, maxCharges, chargeStart, chargeDuration = GetSpellCharges(RagingBlow)
-    -- local startTime1, duration1, enabled1 = GetSpellCooldownNoCharge(RagingBlow)
-    -- print("-------------------------------------------")
-    -- print("GetSpellCooldown", startTime, duration, enabled )
-    -- print("GetSpellCooldownNoCharge", startTime1, duration1, enabled1 )
-    -- print("GetSpellCharges", charges, maxCharges, chargeStart, chargeDuration )
-    
+        -- local isWreckingBallOn = (GetBuff("player", 215570) ~= nil)
 
 
-    -- if IsAvailable(DragonRoar) then
-        -- return DragonRoar
-    -- else
-    -- print(IsUsableSpell(280735), IsAvailable(280735), isEnraged)
-    -- if IsAvailable(Rampage) and (not isEnraged or rage == 100) then
-    if isAOE and not IsWhirlwindBuffOn then
-        return Whirlwind
-    elseif IsAvailable(Rampage) then
-        return Rampage
-    elseif isExecutePhase and IsAvailable(FuryExecute) then
-        return FuryExecute
-    elseif not isEnraged and IsReadySpell(Bloodthirst) then
-        return Bloodthirst
-    elseif IsUsableSpell(FuryExecute) and IsAvailable(FuryExecute) and isEnraged then
-        return FuryExecute
-    elseif IsAvailable(Bloodthirst) then
-        return Bloodthirst
-    elseif IsAvailable2(RagingBlow) then
-        return RagingBlow
-        -- return FuriousSlash
-    else
-        return 7812
+        -- local startTime, duration, enabled = GetSpellCooldown(RagingBlow)
+        -- local charges, maxCharges, chargeStart, chargeDuration = GetSpellCharges(RagingBlow)
+        -- local startTime1, duration1, enabled1 = GetSpellCooldownNoCharge(RagingBlow)
+        -- print("-------------------------------------------")
+        -- print("GetSpellCooldown", startTime, duration, enabled )
+        -- print("GetSpellCooldownNoCharge", startTime1, duration1, enabled1 )
+        -- print("GetSpellCharges", charges, maxCharges, chargeStart, chargeDuration )
+        
+
+
+        -- if IsAvailable(DragonRoar) then
+            -- return DragonRoar
+        -- else
+        -- print(IsUsableSpell(280735), IsAvailable(280735), isEnraged)
+        -- if IsAvailable(Rampage) and (not isEnraged or rage == 100) then
+        if isAOE and not IsWhirlwindBuffOn then
+            return Whirlwind
+        elseif IsAvailable(Rampage) then
+            return Rampage
+        elseif isExecutePhase and IsAvailable(FuryExecute) then
+            return FuryExecute
+        elseif not isEnraged and IsReadySpell(Bloodthirst) then
+            return Bloodthirst
+        elseif IsAvailable(FuryExecute) and isEnraged then
+            return FuryExecute
+        elseif IsAvailable(Bloodthirst) then
+            return Bloodthirst
+        elseif IsAvailable2(RagingBlow) then
+            return RagingBlow
+            -- return FuriousSlash
+        else
+            return 7812
+        end
     end
 end
 
@@ -272,44 +276,73 @@ local ColossusSmash = 167105
 local Warbreaker = 209577
 local MortalStrike = 12294
 local FocusedRage = 207982
+local Execute = 163201
 local Slam = 1464
 local Rend = 772
+local Skullsplitter = 260643
+local Overpower = 7384
 
-local function Arms()
+local function ArmsSetup()
     -- local _, FocusedRageStacks = GetBuff("player", FocusedRage)
     -- local MortalStrikeCooldown = GetCooldown(MortalStrike)
 
-    local IsShatteredDefensesOn = (GetBuff("player", 209706) ~= nil)
-    local IsColossusSmashApplied = false
-    local ExecutionerPrecision = 0
-    local RendRemains = 0
-    local ExecutePhase = IsAvailable(Execute)
-    if UnitExists("target") then
-        ExecutionerPrecision = select(2, GetDebuff("target", 242188))
-        IsColossusSmashApplied = GetDebuff("target", 208086) or 0 > 1.5
-        RendRemains = GetDebuff("target", Rend) or 0
-    end
+    local execute_range = IsPlayerSpell(281001) and 0.35 or 0.2 -- Arms Massacre
+    local isRendKnown = IsPlayerSpell(Rend)
+    local isSkullsplitterKnown = IsPlayerSpell(Skullsplitter)
+    local MortalStrikeCooldown = GetCooldown(MortalStrike)
 
-    if RendRemains == 0 and not ExecutePhase then
-        return Rend
-    elseif IsAvailable(ColossusSmash) and not IsShatteredDefensesOn then
-        return ColossusSmash
-    elseif IsAvailable(Warbreaker) and not IsColossusSmashApplied and not IsShatteredDefensesOn then
-        return Warbreaker
-    elseif IsReadySpell(MortalStrike) and ExecutionerPrecision == 2 and IsShatteredDefensesOn then
-        return MortalStrike
-    elseif IsAvailable(Execute) then
-        return Execute
-    elseif IsReadySpell(MortalStrike) and IsShatteredDefensesOn then
-        return MortalStrike
-    elseif RendRemains < 2.4 and not ExecutePhase then
-        return Rend
-    -- elseif IsAvailable(FocusedRage) and FocusedRageStacks < 3 then
-        -- return FocusedRage
-    elseif IsAvailable(Slam) and not ExecutePhase then
-        return Slam
-    else
-        return 7812
+    return function()
+
+        -- local IsColossusSmashApplied = false
+        local _, ExecutionerPrecision = GetBuff("player", 272870)
+        local _, OverpowerBuff = GetBuff("player", Overpower)
+        local RendRemains = 0
+
+        local rage = UnitPower("player")
+
+        -- local ExecutePhase = IsAvailable(Execute)
+        local isExecutePhase = false
+        if UnitExists("target") then
+            -- IsColossusSmashApplied = GetDebuff("target", 208086) or 0 > 1.5
+            if isRendKnown then RendRemains = GetDebuff("target", Rend) or 0 end
+
+            local h, hm = UnitHealth("target"), UnitHealthMax("target")
+            if hm == 0 then hm = 1 end
+            isExecutePhase = h/hm < execute_range
+        end
+
+        
+
+        if isRendKnown and RendRemains < 4 and not ExecutePhase then
+            return Rend
+        elseif isSkullsplitterKnown and IsAvailable(Skullsplitter) and rage < 60 then
+            return Skullsplitter
+        elseif IsAvailable(ColossusSmash) then
+            return ColossusSmash
+        -- elseif IsAvailable(Warbreaker) and not IsColossusSmashApplied then
+        --     return Warbreaker
+        elseif IsAvailable(Execute) and not isExecutePhase and MortalStrikeCooldown > GCD + 0.1 then -- Sudden Death
+            return Execute
+
+        elseif not isExecutePhase and IsAvailable(MortalStrike) then
+            return MortalStrike
+
+        --- Crushing Assault here
+        ---
+        elseif isExecutePhase and IsReadySpell(MortalStrike) and OverpowerBuff >= 2 or ExecutionerPrecision >= 2 then
+            return MortalStrike
+
+        elseif IsAvailable(Execute) then
+            return Execute
+
+        elseif IsAvailable(Overpower) then
+            return Overpower
+    
+        elseif not isExecutePhase and IsAvailable(Slam) and rage >= 70 then
+            return Slam
+        else
+            return 7812
+        end
     end
 end
 
@@ -738,9 +771,9 @@ function NugReady:SPELLS_CHANGED()
     self.disabled = false
     if class == "WARRIOR" then
         if spec == 2 then
-            DecideCurrentAction = Fury
-        -- elseif spec == 1 then
-            -- DecideCurrentAction = Arms
+            DecideCurrentAction = FurySetup()
+        elseif spec == 1 then
+            DecideCurrentAction = ArmsSetup()
         else
             self.disabled = true
             self:Hide()
