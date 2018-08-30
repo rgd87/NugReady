@@ -201,7 +201,7 @@ end
 local Rampage = 184367
 local OdynsFury = 205545
 local Execute = 5308
-local FuryExecute = 280735
+local FuryExecute = 5308
 local RagingBlow = 85288
 local Bloodthirst = 23881
 local DragonRoar = 118000
@@ -221,7 +221,7 @@ local function Fury()
     if UnitExists('target') then
         local h, hm = UnitHealth("target"), UnitHealthMax("target")
         if hm == 0 then hm = 1 end
-        isExecutePhase = h/hm < 0.35
+        isExecutePhase = h/hm < 0.20
     end
 
     if IsWhirlwindBuffOn then
@@ -231,7 +231,6 @@ local function Fury()
     local isAOE = (LastTimeWhirlwindWasPresent + 5 > GetTime())
 
     -- local isWreckingBallOn = (GetBuff("player", 215570) ~= nil)
-
 
 
     -- local startTime, duration, enabled = GetSpellCooldown(RagingBlow)
@@ -247,6 +246,7 @@ local function Fury()
     -- if IsAvailable(DragonRoar) then
         -- return DragonRoar
     -- else
+    -- print(IsUsableSpell(280735), IsAvailable(280735), isEnraged)
     -- if IsAvailable(Rampage) and (not isEnraged or rage == 100) then
     if isAOE and not IsWhirlwindBuffOn then
         return Whirlwind
