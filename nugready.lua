@@ -352,6 +352,7 @@ local WhirlingDragonPunch = 152175
 local TigerPalm = 100780
 local RisingSunKick = 107428
 local BlackoutKick = 100784
+local ChiBurst = 123986
 local ENUM_CHI = Enum.PowerType.Chi
 
 local LastUsedAbility
@@ -372,32 +373,47 @@ local IsReadyInCombo = function(spellID)
 end
 
 
-local function Windwalker()
-    local chi = UnitPower("player", ENUM_CHI)
-    local chimax = UnitPowerMax("player", ENUM_CHI)
-    local energy = UnitPower("player")
-    local energyMax = UnitPowerMax("player")
-    local WDPSoon = GetCooldown(WhirlingDragonPunch) < 6
-    local FOFSoon = GetCooldown(WhirlingDragonPunch) < 3
+local function WindwalkerSetup()
 
-    if IsReadyInCombo(FistOfTheWhiteTiger) and chimax - chi >= 3 then
-        return FistOfTheWhiteTiger
+    local isFistOfTheWhiteTigerKnown = IsPlayerSpell(FistOfTheWhiteTiger)
+    local isChiBurstKnown = IsPlayerSpell(ChiBurst)
 
-    -- elseif FOFSoon and IsReadyInCombo(TigerPalm) and chi < 3 then  -- don't spend chi on garbage when fof is coming up
-        -- return TigerPalm
-    elseif IsAvailableInCombo(RisingSunKick) then
-        return RisingSunKick
-    elseif IsAvailableInCombo(FistsOfFury) then
-        return FistsOfFury
+    return function()
+        local chi = UnitPower("player", ENUM_CHI)
+        local chimax = UnitPowerMax("player", ENUM_CHI)
+        local energy = UnitPower("player")
+        local energyMax = UnitPowerMax("player")
+        local WDPSoon = GetCooldown(WhirlingDragonPunch) < 6
+        local FOFSoon = GetCooldown(WhirlingDragonPunch) < 3
 
-    elseif IsAvailableInCombo(WhirlingDragonPunch) then
-        return WhirlingDragonPunch
-    elseif IsReadyInCombo(TigerPalm) and chimax - chi >= 2 then  -- to prioritize spending move below blackout kick
-        return TigerPalm
-    elseif IsAvailableInCombo(BlackoutKick) then
-        return BlackoutKick
-    else
-        return TigerPalm
+        if isFistOfTheWhiteTigerKnown and IsReadyInCombo(FistOfTheWhiteTiger) and chimax - chi >= 3 and energy > 70 then
+            return FistOfTheWhiteTiger
+
+        elseif energy > 80 and IsReadyInCombo(TigerPalm) and chimax - chi >= 2 then
+            return TigerPalm
+
+
+        elseif IsAvailableInCombo(WhirlingDragonPunch) then
+            return WhirlingDragonPunch
+        elseif IsAvailableInCombo(RisingSunKick) then
+            return RisingSunKick
+        elseif IsAvailableInCombo(FistsOfFury) then
+            return FistsOfFury
+
+        elseif isChiBurstKnown and IsAvailableInCombo(ChiBurst) then
+            return ChiBurst
+        elseif isFistOfTheWhiteTigerKnown and IsReadyInCombo(FistOfTheWhiteTiger) and chimax - chi >= 3 then
+            return FistOfTheWhiteTiger
+
+        
+        elseif IsReadyInCombo(TigerPalm) and chimax - chi >= 2 then  -- to prioritize spending move below blackout kick
+            return TigerPalm
+        elseif IsAvailableInCombo(BlackoutKick) then
+            return BlackoutKick
+        else
+            return TigerPalm
+        end
+
     end
 end
 
@@ -645,7 +661,7 @@ local function FeralSetup()
 end
 
 
-local DecideCurrentAction = Windwalker
+local DecideCurrentAction = Retribution
 
 local _elapsed = 0
 function NugReady_OnUpdate(self, time)
@@ -780,7 +796,7 @@ function NugReady:SPELLS_CHANGED()
         end
     elseif class == "MONK" then
         if spec == 3 then
-            DecideCurrentAction = Windwalker
+            DecideCurrentAction = WindwalkerSetup()
         elseif spec == 1 then
             if IsPlayerSpell(196736) then
                 DecideCurrentAction = BrewmasterBlackout
