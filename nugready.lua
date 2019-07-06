@@ -370,6 +370,7 @@ local ChiBurst = 123986
 local ReverseHarm = 287771
 local SpinningCraneKick = 101546
 local DanceOfChiJi = 286587
+local FreeBlackoutKick = 116768
 local ENUM_CHI = Enum.PowerType.Chi
 
 local LastUsedAbility
@@ -413,6 +414,8 @@ local function WindwalkerSetup()
         local regen = (100+haste)/10  -- energy per second
         local timetocap = ((energyMax - 10) - energy) / regen
 
+        local isFreeBlackout = IsBuffUp(FreeBlackoutKick)
+
         if isFistOfTheWhiteTigerKnown and IsReadyInCombo(FistOfTheWhiteTiger) and chimax - chi >= 3 and energy > 70 then
             return FistOfTheWhiteTiger
 
@@ -429,7 +432,7 @@ local function WindwalkerSetup()
             return RisingSunKick
         elseif IsAvailableInCombo(FistsOfFury) and timetocap > 2.9 then
             return FistsOfFury
-        elseif IsAvailableInCombo(SpinningCraneKick) and IsBuffUp(DanceOfChiJi) then
+        elseif IsAvailableInCombo(SpinningCraneKick) and IsBuffUp(DanceOfChiJi) and timetocap > 1.5 then
             return SpinningCraneKick
         elseif isReverseHarmKnown and healthPercent < reverseHarmHealthThreshold and IsReadyInCombo(ReverseHarm) and chimax - chi >= 2 then
             return ReverseHarm
@@ -438,14 +441,18 @@ local function WindwalkerSetup()
         elseif isFistOfTheWhiteTigerKnown and IsReadyInCombo(FistOfTheWhiteTiger) and chimax - chi >= 3 then
             return FistOfTheWhiteTiger
         elseif IsAvailableInCombo(BlackoutKick) and
-            (not RSKSoon or chi >= 3) and
-            (not FOFSoon or chi >= 4)
+            (isFreeBlackout or not RSKSoon or chi >= 3) and
+            (isFreeBlackout or not FOFSoon or chi >= 4)
         then
             return BlackoutKick
         elseif IsReadyInCombo(TigerPalm) and chimax - chi >= 2 then  -- to prioritize spending move below blackout kick
             return TigerPalm
 
-        else
+
+
+        elseif IsAvailableInCombo(BlackoutKick) then
+            return BlackoutKick
+        elseif IsReadyInCombo(TigerPalm) then
             return TigerPalm
         end
 
