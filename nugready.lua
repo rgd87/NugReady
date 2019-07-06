@@ -115,11 +115,17 @@ local function GetBuff(unit, spellID)
     if not name then return nil, 0 end
     return expirationTime - GetTime(), count
 end
+local function IsBuffUp(spellID)
+    return GetBuff("player", spellID)
+end
 
 local function GetDebuff(unit, spellID)
     local name, _, count, _, duration, expirationTime, caster, _,_, aura_spellID = FindAura(unit, spellID, "HARMFUL")
     if not name then return nil, 0 end
     return expirationTime - GetTime(), count, duration
+end
+local function IsDebuffUp(spellID)
+    return GetDebuff("target", spellID)
 end
 
 local function GetSpellCooldownNoCharge(spellID)
@@ -192,6 +198,14 @@ local function IsAvailable2(spellID)
     return IsUsableSpell(spellID) and IsReadySpell2(spellID)
 end
 
+-------------------------
+-- ESSENCES
+-------------------------
+
+local ConcentratedFlame = 295373
+
+
+
 local Enrage = 184362
 local function IsEnraged()
     local name = FindAura("player", Enrage, "HELPFUL")
@@ -243,7 +257,7 @@ local function FurySetup()
         -- print("GetSpellCooldown", startTime, duration, enabled )
         -- print("GetSpellCooldownNoCharge", startTime1, duration1, enabled1 )
         -- print("GetSpellCharges", charges, maxCharges, chargeStart, chargeDuration )
-        
+
 
 
         -- if IsAvailable(DragonRoar) then
@@ -311,7 +325,7 @@ local function ArmsSetup()
             isExecutePhase = h/hm < execute_range
         end
 
-        
+
 
         if isRendKnown and RendRemains < 4 and not ExecutePhase then
             return Rend
@@ -337,7 +351,7 @@ local function ArmsSetup()
 
         elseif IsAvailable(Overpower) then
             return Overpower
-    
+
         elseif not isExecutePhase and IsAvailable(Slam) and rage >= 70 then
             return Slam
         else
@@ -353,6 +367,9 @@ local TigerPalm = 100780
 local RisingSunKick = 107428
 local BlackoutKick = 100784
 local ChiBurst = 123986
+local ReverseHarm = 287771
+local SpinningCraneKick = 101546
+local DanceOfChiJi = 286587
 local ENUM_CHI = Enum.PowerType.Chi
 
 local LastUsedAbility
@@ -377,39 +394,57 @@ local function WindwalkerSetup()
 
     local isFistOfTheWhiteTigerKnown = IsPlayerSpell(FistOfTheWhiteTiger)
     local isChiBurstKnown = IsPlayerSpell(ChiBurst)
+    local isReverseHarmKnown = IsPlayerSpell(ReverseHarm)
+    local isConcentratedFlameKnown = IsPlayerSpell(ConcentratedFlame)
+    local reverseHarmHealthThreshold = 0.95
 
     return function()
         local chi = UnitPower("player", ENUM_CHI)
         local chimax = UnitPowerMax("player", ENUM_CHI)
         local energy = UnitPower("player")
         local energyMax = UnitPowerMax("player")
-        local WDPSoon = GetCooldown(WhirlingDragonPunch) < 6
-        local FOFSoon = GetCooldown(WhirlingDragonPunch) < 3
+        local health = UnitHealth("player")
+        local healthMax = UnitHealthMax("player")
+        local healthPercent = health/healthMax
+        -- local WDPSoon = GetCooldown(WhirlingDragonPunch) < 6
+        local FOFSoon = GetCooldown(FistsOfFury) < 4
+        local RSKSoon = GetCooldown(RisingSunKick) < 3
+        local haste = UnitSpellHaste("player")
+        local regen = (100+haste)/10  -- energy per second
+        local timetocap = ((energyMax - 10) - energy) / regen
 
         if isFistOfTheWhiteTigerKnown and IsReadyInCombo(FistOfTheWhiteTiger) and chimax - chi >= 3 and energy > 70 then
             return FistOfTheWhiteTiger
 
+        elseif energy > 80 and isReverseHarmKnown and healthPercent < reverseHarmHealthThreshold and IsReadyInCombo(ReverseHarm) and chimax - chi >= 2 then
+            return ReverseHarm
         elseif energy > 80 and IsReadyInCombo(TigerPalm) and chimax - chi >= 2 then
             return TigerPalm
 
-
         elseif IsAvailableInCombo(WhirlingDragonPunch) then
             return WhirlingDragonPunch
+        elseif isConcentratedFlameKnown and IsAvailableInCombo(ConcentratedFlame) then
+            return ConcentratedFlame
         elseif IsAvailableInCombo(RisingSunKick) then
             return RisingSunKick
-        elseif IsAvailableInCombo(FistsOfFury) then
+        elseif IsAvailableInCombo(FistsOfFury) and timetocap > 2.9 then
             return FistsOfFury
-
+        elseif IsAvailableInCombo(SpinningCraneKick) and IsBuffUp(DanceOfChiJi) then
+            return SpinningCraneKick
+        elseif isReverseHarmKnown and healthPercent < reverseHarmHealthThreshold and IsReadyInCombo(ReverseHarm) and chimax - chi >= 2 then
+            return ReverseHarm
         elseif isChiBurstKnown and IsAvailableInCombo(ChiBurst) then
             return ChiBurst
         elseif isFistOfTheWhiteTigerKnown and IsReadyInCombo(FistOfTheWhiteTiger) and chimax - chi >= 3 then
             return FistOfTheWhiteTiger
-
-        
+        elseif IsAvailableInCombo(BlackoutKick) and
+            (not RSKSoon or chi >= 3) and
+            (not FOFSoon or chi >= 4)
+        then
+            return BlackoutKick
         elseif IsReadyInCombo(TigerPalm) and chimax - chi >= 2 then  -- to prioritize spending move below blackout kick
             return TigerPalm
-        elseif IsAvailableInCombo(BlackoutKick) then
-            return BlackoutKick
+
         else
             return TigerPalm
         end
@@ -518,7 +553,7 @@ local function Brewmaster()
         else
             return TigerPalm
         end
-    
+
     -- elseif IsReadySpell(BreathOfFire) then
         -- return BreathOfFire
         -- elseif IsAvailable(RushingJadeWind) then
