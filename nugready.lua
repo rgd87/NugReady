@@ -206,6 +206,63 @@ local ConcentratedFlame = 295373
 
 
 
+-------------------------
+-- RANGE CHECKER
+-------------------------
+
+local RangeCheck = CreateFrame("Frame", nil, UIParent)
+RangeCheck:SetScript("OnEvent", function(self, event, ...)
+    return self[event](self, event, ...)
+end)
+
+local activeNameplateUnits = {}
+
+local isAOE = false
+local rangeCheckElapsed = 0
+local rangeCheckSpellName = nil
+local rangeCheckTargetCount = 4
+local RangeCheckOnUpdate = function(self, elapsed)
+    rangeCheckElapsed = rangeCheckElapsed + elapsed
+    if rangeCheckElapsed < 0.3 then return end
+    rangeCheckElapsed = 0
+
+    local unitsInRange = 0
+    for unit in pairs(activeNameplateUnits) do
+        if IsSpellInRange(rangeCheckSpellName, unit) then
+            unitsInRange = unitsInRange + 1
+        end
+    end
+
+    isAOE = unitsInRange >= rangeCheckTargetCount
+end
+
+
+
+RangeCheck:RegisterEvent("NAME_PLATE_UNIT_ADDED")
+RangeCheck:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
+function RangeCheck:NAME_PLATE_UNIT_ADDED(event, unit)
+    activeNameplateUnits[unit] = true
+end
+function RangeCheck:NAME_PLATE_UNIT_REMOVED(event, unit)
+    activeNameplateUnits[unit] = nil
+end
+
+function RangeCheck:Configure(targetCount, spellID)
+    rangeCheckTargetCount = targetCount
+    rangeCheckSpellName = GetSpellInfo(spellID)
+end
+function RangeCheck:Enable()
+    if not rangeCheckSpellName then return end
+    rangeCheckElapsed = 5
+    self:SetScript("OnUpdate", RangeCheckOnUpdate)
+end
+function RangeCheck:Disable()
+    self:SetScript("OnUpdate", nil)
+end
+
+
+
+
 local Enrage = 184362
 local function IsEnraged()
     local name = FindAura("player", Enrage, "HELPFUL")
@@ -398,8 +455,9 @@ local function WindwalkerSetup()
     local isReverseHarmKnown = IsPlayerSpell(ReverseHarm)
     local isConcentratedFlameKnown = IsPlayerSpell(ConcentratedFlame)
     local reverseHarmHealthThreshold = 0.95
+    RangeCheck:Configure(3, 113656) -- FoF, 8 yards
 
-    return function()
+    local WindwalkerSingleTarget = function()
         local chi = UnitPower("player", ENUM_CHI)
         local chimax = UnitPowerMax("player", ENUM_CHI)
         local energy = UnitPower("player")
@@ -456,6 +514,73 @@ local function WindwalkerSetup()
             return TigerPalm
         end
 
+    end
+
+
+    local WindwalkerMultiTarget = function()
+        local chi = UnitPower("player", ENUM_CHI)
+        local chimax = UnitPowerMax("player", ENUM_CHI)
+        local energy = UnitPower("player")
+        local energyMax = UnitPowerMax("player")
+        local health = UnitHealth("player")
+        local healthMax = UnitHealthMax("player")
+        local healthPercent = health/healthMax
+        local WDPSoon = GetCooldown(WhirlingDragonPunch) < 6
+        -- local FOFSoon = GetCooldown(FistsOfFury) < 6
+        local FoFCD = GetCooldown(FistsOfFury)
+        -- local RSKSoon = GetCooldown(RisingSunKick) < 3
+        local haste = UnitSpellHaste("player")
+        local regen = (100+haste)/10  -- energy per second
+        local timetocap = ((energyMax - 10) - energy) / regen
+
+        if IsAvailableInCombo(WhirlingDragonPunch) then
+            return WhirlingDragonPunch
+        elseif IsAvailableInCombo(FistsOfFury) and timetocap > 2.9 then
+            return FistsOfFury
+
+        elseif timetocap < 2 and isReverseHarmKnown and healthPercent < reverseHarmHealthThreshold and IsReadyInCombo(ReverseHarm) and chimax - chi >= 2 then
+            return ReverseHarm
+
+        elseif timetocap < 2 and isFistOfTheWhiteTigerKnown and IsReadyInCombo(FistOfTheWhiteTiger) and chimax - chi >= 3 then
+            return FistOfTheWhiteTiger
+
+        elseif timetocap < 2 and IsReadyInCombo(TigerPalm) and chimax - chi >= 2 then
+            return TigerPalm
+
+        elseif WDPSoon and IsAvailableInCombo(RisingSunKick) then
+            return RisingSunKick
+
+        elseif IsAvailableInCombo(SpinningCraneKick) and timetocap > 2.5 and
+            (chi >= 3 or FoFCD > 6) and
+            (chi >= 5 or FoFCD > 2)
+        then
+            return SpinningCraneKick
+
+        elseif isReverseHarmKnown and healthPercent < reverseHarmHealthThreshold and IsReadyInCombo(ReverseHarm) and chimax - chi >= 2 then
+            return ReverseHarm
+
+        elseif IsAvailableInCombo(RisingSunKick) then
+            return RisingSunKick
+
+        elseif isFistOfTheWhiteTigerKnown and IsReadyInCombo(FistOfTheWhiteTiger) and chimax - chi >= 3 then
+            return FistOfTheWhiteTiger
+
+        elseif IsReadyInCombo(TigerPalm) then
+            return TigerPalm
+
+        elseif IsAvailableInCombo(BlackoutKick) then
+            return BlackoutKick
+
+        end
+
+    end
+
+    return function()
+        if isAOE then
+            return WindwalkerMultiTarget()
+        else
+            return WindwalkerSingleTarget()
+        end
     end
 end
 
@@ -827,6 +952,7 @@ function NugReady:SPELLS_CHANGED()
     local _, class = UnitClass('player')
     local spec = GetSpecialization()
     self.disabled = false
+    RangeCheck:Configure(nil, nil)
     if class == "WARRIOR" then
         if spec == 2 then
             DecideCurrentAction = FurySetup()
@@ -873,14 +999,20 @@ function NugReady:SPELLS_CHANGED()
         self.disabled = true
         self:Hide()
     end
+
+    if not rangeCheckSpellName then
+        RangeCheck:Disable()
+    end
 end
 
 function NugReady:PLAYER_REGEN_DISABLED()
     if self.disabled then self:Hide(); return end
 
+    RangeCheck:Enable()
     self:Show()
 end
 
 function NugReady:PLAYER_REGEN_ENABLED()
+    RangeCheck:Disable()
     self:Hide()
 end
