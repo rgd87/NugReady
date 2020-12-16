@@ -424,9 +424,9 @@ local TigerPalm = 100780
 local RisingSunKick = 107428
 local BlackoutKick = 100784
 local ChiBurst = 123986
-local ReverseHarm = 287771
+local ExpelHarm = 322101
 local SpinningCraneKick = 101546
-local DanceOfChiJi = 286587
+local DanceOfChiJi = 325202
 local FreeBlackoutKick = 116768
 local ENUM_CHI = Enum.PowerType.Chi
 
@@ -452,9 +452,9 @@ local function WindwalkerSetup()
 
     local isFistOfTheWhiteTigerKnown = IsPlayerSpell(FistOfTheWhiteTiger)
     local isChiBurstKnown = IsPlayerSpell(ChiBurst)
-    local isReverseHarmKnown = IsPlayerSpell(ReverseHarm)
+    local isExpelHarmKnown = IsPlayerSpell(ExpelHarm)
     local isConcentratedFlameKnown = IsPlayerSpell(ConcentratedFlame)
-    local reverseHarmHealthThreshold = 0.95
+    local ExpelHarmHealthThreshold = 0.95
     RangeCheck:Configure(3, 113656) -- FoF, 8 yards
 
     local WindwalkerSingleTarget = function()
@@ -477,27 +477,35 @@ local function WindwalkerSetup()
         if isFistOfTheWhiteTigerKnown and IsReadyInCombo(FistOfTheWhiteTiger) and chimax - chi >= 3 and energy > 70 then
             return FistOfTheWhiteTiger
 
-        elseif energy > 80 and isReverseHarmKnown and healthPercent < reverseHarmHealthThreshold and IsReadyInCombo(ReverseHarm) and chimax - chi >= 2 then
-            return ReverseHarm
+        elseif energy > 70 and IsReadyInCombo(ExpelHarm) and chimax - chi >= 1 then
+            return ExpelHarm
+
         elseif energy > 80 and IsReadyInCombo(TigerPalm) and chimax - chi >= 2 then
             return TigerPalm
 
         elseif IsAvailableInCombo(WhirlingDragonPunch) then
             return WhirlingDragonPunch
-        elseif isConcentratedFlameKnown and IsAvailableInCombo(ConcentratedFlame) then
-            return ConcentratedFlame
-        elseif IsAvailableInCombo(RisingSunKick) then
-            return RisingSunKick
+
         elseif IsAvailableInCombo(FistsOfFury) and timetocap > 2.9 then
             return FistsOfFury
-        elseif IsAvailableInCombo(SpinningCraneKick) and IsBuffUp(DanceOfChiJi) and timetocap > 1.5 then
-            return SpinningCraneKick
-        elseif isReverseHarmKnown and healthPercent < reverseHarmHealthThreshold and IsReadyInCombo(ReverseHarm) and chimax - chi >= 2 then
-            return ReverseHarm
+
+        -- elseif isConcentratedFlameKnown and IsAvailableInCombo(ConcentratedFlame) then
+        --     return ConcentratedFlame
+        elseif IsAvailableInCombo(RisingSunKick) then
+            return RisingSunKick
+
         elseif isChiBurstKnown and IsAvailableInCombo(ChiBurst) then
             return ChiBurst
+
+        elseif IsAvailableInCombo(SpinningCraneKick) and IsBuffUp(DanceOfChiJi) and timetocap > 1.5 then
+            return DanceOfChiJi
+
+        elseif isExpelHarmKnown and IsReadyInCombo(ExpelHarm) and chimax - chi >= 1 then
+            return ExpelHarm
+
         elseif isFistOfTheWhiteTigerKnown and IsReadyInCombo(FistOfTheWhiteTiger) and chimax - chi >= 3 then
             return FistOfTheWhiteTiger
+
         elseif IsAvailableInCombo(BlackoutKick) and
             (isFreeBlackout or not RSKSoon or chi >= 3) and
             (isFreeBlackout or not FOFSoon or chi >= 4)
@@ -533,13 +541,10 @@ local function WindwalkerSetup()
         local regen = (100+haste)/10  -- energy per second
         local timetocap = ((energyMax - 10) - energy) / regen
 
-        if IsAvailableInCombo(WhirlingDragonPunch) then
-            return WhirlingDragonPunch
-        elseif IsAvailableInCombo(FistsOfFury) and timetocap > 2.9 then
-            return FistsOfFury
+        local isFreeBlackout = IsBuffUp(FreeBlackoutKick)
 
-        elseif timetocap < 2 and isReverseHarmKnown and healthPercent < reverseHarmHealthThreshold and IsReadyInCombo(ReverseHarm) and chimax - chi >= 2 then
-            return ReverseHarm
+        if timetocap < 2 and IsReadyInCombo(ExpelHarm) and chimax - chi >= 1 then
+            return ExpelHarm
 
         elseif timetocap < 2 and isFistOfTheWhiteTigerKnown and IsReadyInCombo(FistOfTheWhiteTiger) and chimax - chi >= 3 then
             return FistOfTheWhiteTiger
@@ -547,8 +552,23 @@ local function WindwalkerSetup()
         elseif timetocap < 2 and IsReadyInCombo(TigerPalm) and chimax - chi >= 2 then
             return TigerPalm
 
+        elseif IsAvailableInCombo(WhirlingDragonPunch) then
+            return WhirlingDragonPunch
+
+        elseif IsAvailableInCombo(SpinningCraneKick) and IsBuffUp(DanceOfChiJi) and timetocap > 1.5 then
+            return DanceOfChiJi
+
+        elseif IsAvailableInCombo(FistsOfFury) and timetocap > 2.9 then
+            return FistsOfFury
+
         elseif WDPSoon and IsAvailableInCombo(RisingSunKick) then
             return RisingSunKick
+
+        elseif isExpelHarmKnown and IsReadyInCombo(ExpelHarm) and chimax - chi >= 1 then
+            return ExpelHarm
+
+        elseif isChiBurstKnown and IsAvailableInCombo(ChiBurst) and chimax - chi >= 1 then
+            return ChiBurst
 
         elseif IsAvailableInCombo(SpinningCraneKick) and timetocap > 2.5 and
             (chi >= 3 or FoFCD > 6) and
@@ -556,8 +576,8 @@ local function WindwalkerSetup()
         then
             return SpinningCraneKick
 
-        elseif isReverseHarmKnown and healthPercent < reverseHarmHealthThreshold and IsReadyInCombo(ReverseHarm) and chimax - chi >= 2 then
-            return ReverseHarm
+        elseif IsAvailableInCombo(BlackoutKick) and isFreeBlackout then
+            return BlackoutKick
 
         elseif IsAvailableInCombo(RisingSunKick) then
             return RisingSunKick
@@ -568,8 +588,8 @@ local function WindwalkerSetup()
         elseif IsReadyInCombo(TigerPalm) then
             return TigerPalm
 
-        elseif IsAvailableInCombo(BlackoutKick) then
-            return BlackoutKick
+        -- elseif IsAvailableInCombo(BlackoutKick) then
+        --     return BlackoutKick
 
         end
 
@@ -845,12 +865,19 @@ function NugReady_OnUpdate(self, time)
     self.icon:SetTexture(texture)
 end
 
+local MakeBorder = function(self, tex, left, right, top, bottom, level)
+    local t = self:CreateTexture(nil,"BORDER",nil,level)
+    t:SetTexture(tex)
+    t:SetPoint("TOPLEFT", self, "TOPLEFT", left, -top)
+    t:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -right, bottom)
+    return t
+end
 
 function NugReady.CreateIcon(self, parent)
     -- local f = CreateFrame("Frame", nil, parent)
     local f = self
-    local width = 40
-    local height = 40
+    local width = 35
+    local height = 35
     f:SetWidth(width); f:SetHeight(height);
     f:SetPoint("CENTER","UIParent","CENTER",NugReadyDB.posX, NugReadyDB.posY)
 
@@ -883,13 +910,17 @@ function NugReady.CreateIcon(self, parent)
     --     end
     -- end
 
-    local backdrop = {
-        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-        tile = true, tileSize = 0,
-        insets = {left = -2, right = -2, top = -2, bottom = -2},
-    }
-    f:SetBackdrop(backdrop)
-    f:SetBackdropColor(0, 0, 0, 0.7)
+    -- local backdrop = {
+    --     bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+    --     tile = true, tileSize = 0,
+    --     insets = {left = -2, right = -2, top = -2, bottom = -2},
+    -- }
+    -- f:SetBackdrop(backdrop)
+    -- f:SetBackdropColor(0, 0, 0, 0.7)
+    local border = 1
+
+    local outline = MakeBorder(f, "Interface\\BUTTONS\\WHITE8X8", -border, -border, -border, -border, -2)
+    outline:SetVertexColor(0,0,0)
 
 
         local text = f:CreateFontString(nil, "OVERLAY")
