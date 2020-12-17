@@ -16,11 +16,17 @@ local UnitExists = UnitExists
 local GetSpellCooldown = GetSpellCooldown
 local GetSpellCharges = GetSpellCharges
 local IsPlayerSpell = IsPlayerSpell
-
+local tinsert = table.insert
+local function push(tbl, item)
+    if not tbl[item] then
+        tinsert(tbl, item)
+        tbl[item] = true
+    end
+end
 
 local defaults = {
     point = "CENTER",
-    posX = 0, posY = 0,
+    x = 0, y = 0,
 }
 
 local function SetupDefaults(t, defaults)
@@ -62,8 +68,28 @@ function NugReady.ADDON_LOADED(self,event,arg1)
 
         -- self.db = NugReady
 
-        -- self.anchor = self:CreateAnchor()
-        self:CreateIcon()
+        local anchor = self:CreateAnchor()
+        anchor:Hide()
+        self.anchor = anchor
+        anchor.san = NugReadyDB
+        local san = NugReadyDB
+        self.anchor:SetPoint(san.point,UIParent,san.point,san.x,san.y)
+
+        self.icons = {}
+        for i=1,3 do
+            local icon = self:CreateIcon(self)
+            table.insert(self.icons, icon)
+            local prev = self.icons[i-1]
+            if prev then
+                icon:SetPoint("BOTTOMLEFT", prev, "BOTTOMRIGHT", 5, 0)
+            else
+                icon:SetPoint("BOTTOMLEFT", anchor, "TOPRIGHT", 0, 0)
+            end
+        end
+
+
+        self:SetScript("OnUpdate", NugReady_OnUpdate)
+        self:Hide()
 
         -- self.frame = CreateFrame("Frame", nil, UIParent)
         -- self.frame:SetPoint('TOPLEFT', self.anchor, "BOTTOMRIGHT", 0,0)
@@ -80,10 +106,9 @@ function NugReady.ADDON_LOADED(self,event,arg1)
         SLASH_NUGREADY1= "/nugready"
         SlashCmdList["NUGREADY"] = function(msg)
             if msg == "unlock" then
-                NugReady:EnableMouse(true)
-                NugReady:Show()
+                NugReady.anchor:Show()
             elseif msg == "lock" then
-                NugReady:EnableMouse(false)
+                NugReady.anchor:Hide()
             else
                 DEFAULT_CHAT_FRAME:AddMessage([[Usage:
                 /nugready unlock
@@ -457,7 +482,7 @@ local function WindwalkerSetup()
     local ExpelHarmHealthThreshold = 0.95
     RangeCheck:Configure(3, 113656) -- FoF, 8 yards
 
-    local WindwalkerSingleTarget = function()
+    local WindwalkerSingleTarget = function(actionQueue)
         local chi = UnitPower("player", ENUM_CHI)
         local chimax = UnitPowerMax("player", ENUM_CHI)
         local energy = UnitPower("player")
@@ -475,57 +500,70 @@ local function WindwalkerSetup()
         local isFreeBlackout = IsBuffUp(FreeBlackoutKick)
 
         if isFistOfTheWhiteTigerKnown and IsReadyInCombo(FistOfTheWhiteTiger) and chimax - chi >= 3 and energy > 70 then
-            return FistOfTheWhiteTiger
+            push(actionQueue, FistOfTheWhiteTiger)
+        end
 
-        elseif energy > 70 and IsReadyInCombo(ExpelHarm) and chimax - chi >= 1 then
-            return ExpelHarm
+        if energy > 70 and IsReadyInCombo(ExpelHarm) and chimax - chi >= 1 then
+            push(actionQueue, ExpelHarm)
+        end
 
-        elseif energy > 80 and IsReadyInCombo(TigerPalm) and chimax - chi >= 2 then
-            return TigerPalm
+        if energy > 80 and IsReadyInCombo(TigerPalm) and chimax - chi >= 2 then
+            push(actionQueue, TigerPalm)
+        end
 
-        elseif IsAvailableInCombo(WhirlingDragonPunch) then
-            return WhirlingDragonPunch
+        if IsAvailableInCombo(WhirlingDragonPunch) then
+            push(actionQueue, WhirlingDragonPunch)
+        end
 
-        elseif IsAvailableInCombo(FistsOfFury) and timetocap > 2.9 then
-            return FistsOfFury
+        if IsAvailableInCombo(FistsOfFury) and timetocap > 2.9 then
+            push(actionQueue, FistsOfFury)
+        end
 
         -- elseif isConcentratedFlameKnown and IsAvailableInCombo(ConcentratedFlame) then
-        --     return ConcentratedFlame
-        elseif IsAvailableInCombo(RisingSunKick) then
-            return RisingSunKick
+        --     push(actionQueue, ConcentratedFlame)
+        if IsAvailableInCombo(RisingSunKick) then
+            push(actionQueue, RisingSunKick)
+        end
 
-        elseif isChiBurstKnown and IsAvailableInCombo(ChiBurst) then
-            return ChiBurst
+        if isChiBurstKnown and IsAvailableInCombo(ChiBurst) then
+            push(actionQueue, ChiBurst)
+        end
 
-        elseif IsAvailableInCombo(SpinningCraneKick) and IsBuffUp(DanceOfChiJi) and timetocap > 1.5 then
-            return DanceOfChiJi
+        if IsAvailableInCombo(SpinningCraneKick) and IsBuffUp(DanceOfChiJi) and timetocap > 1.5 then
+            push(actionQueue, DanceOfChiJi)
+        end
 
-        elseif isExpelHarmKnown and IsReadyInCombo(ExpelHarm) and chimax - chi >= 1 then
-            return ExpelHarm
+        if isExpelHarmKnown and IsReadyInCombo(ExpelHarm) and chimax - chi >= 1 then
+            push(actionQueue, ExpelHarm)
+        end
 
-        elseif isFistOfTheWhiteTigerKnown and IsReadyInCombo(FistOfTheWhiteTiger) and chimax - chi >= 3 then
-            return FistOfTheWhiteTiger
+        if isFistOfTheWhiteTigerKnown and IsReadyInCombo(FistOfTheWhiteTiger) and chimax - chi >= 3 then
+            push(actionQueue, FistOfTheWhiteTiger)
+        end
 
-        elseif IsAvailableInCombo(BlackoutKick) and
+        if IsAvailableInCombo(BlackoutKick) and
             (isFreeBlackout or not RSKSoon or chi >= 3) and
             (isFreeBlackout or not FOFSoon or chi >= 4)
         then
-            return BlackoutKick
-        elseif IsReadyInCombo(TigerPalm) and chimax - chi >= 2 then  -- to prioritize spending move below blackout kick
-            return TigerPalm
+            push(actionQueue, BlackoutKick)
+        end
 
+        if IsReadyInCombo(TigerPalm) and chimax - chi >= 2 then  -- to prioritize spending move below blackout kick
+            push(actionQueue, TigerPalm)
+        end
 
+        if IsAvailableInCombo(BlackoutKick) then
+            push(actionQueue, BlackoutKick)
+        end
 
-        elseif IsAvailableInCombo(BlackoutKick) then
-            return BlackoutKick
-        elseif IsReadyInCombo(TigerPalm) then
-            return TigerPalm
+        if IsReadyInCombo(TigerPalm) then
+            push(actionQueue, TigerPalm)
         end
 
     end
 
 
-    local WindwalkerMultiTarget = function()
+    local WindwalkerMultiTarget = function(actionQueue)
         local chi = UnitPower("player", ENUM_CHI)
         local chimax = UnitPowerMax("player", ENUM_CHI)
         local energy = UnitPower("player")
@@ -544,62 +582,76 @@ local function WindwalkerSetup()
         local isFreeBlackout = IsBuffUp(FreeBlackoutKick)
 
         if timetocap < 2 and IsReadyInCombo(ExpelHarm) and chimax - chi >= 1 then
-            return ExpelHarm
+            push(actionQueue, ExpelHarm)
+        end
 
-        elseif timetocap < 2 and isFistOfTheWhiteTigerKnown and IsReadyInCombo(FistOfTheWhiteTiger) and chimax - chi >= 3 then
-            return FistOfTheWhiteTiger
+        if timetocap < 2 and isFistOfTheWhiteTigerKnown and IsReadyInCombo(FistOfTheWhiteTiger) and chimax - chi >= 3 then
+            push(actionQueue, FistOfTheWhiteTiger)
+        end
 
-        elseif timetocap < 2 and IsReadyInCombo(TigerPalm) and chimax - chi >= 2 then
-            return TigerPalm
+        if timetocap < 2 and IsReadyInCombo(TigerPalm) and chimax - chi >= 2 then
+            push(actionQueue, TigerPalm)
+        end
 
-        elseif IsAvailableInCombo(WhirlingDragonPunch) then
-            return WhirlingDragonPunch
+        if IsAvailableInCombo(WhirlingDragonPunch) then
+            push(actionQueue, WhirlingDragonPunch)
+        end
 
-        elseif IsAvailableInCombo(SpinningCraneKick) and IsBuffUp(DanceOfChiJi) and timetocap > 1.5 then
-            return DanceOfChiJi
+        if IsAvailableInCombo(SpinningCraneKick) and IsBuffUp(DanceOfChiJi) and timetocap > 1.5 then
+            push(actionQueue, DanceOfChiJi)
+        end
 
-        elseif IsAvailableInCombo(FistsOfFury) and timetocap > 2.9 then
-            return FistsOfFury
+        if IsAvailableInCombo(FistsOfFury) and timetocap > 2.9 then
+            push(actionQueue, FistsOfFury)
+        end
 
-        elseif WDPSoon and IsAvailableInCombo(RisingSunKick) then
-            return RisingSunKick
+        if WDPSoon and IsAvailableInCombo(RisingSunKick) then
+            push(actionQueue, RisingSunKick)
+        end
 
-        elseif isExpelHarmKnown and IsReadyInCombo(ExpelHarm) and chimax - chi >= 1 then
-            return ExpelHarm
+        if isExpelHarmKnown and IsReadyInCombo(ExpelHarm) and chimax - chi >= 1 then
+            push(actionQueue, ExpelHarm)
+        end
 
-        elseif isChiBurstKnown and IsAvailableInCombo(ChiBurst) and chimax - chi >= 1 then
-            return ChiBurst
+        if isChiBurstKnown and IsAvailableInCombo(ChiBurst) and chimax - chi >= 1 then
+            push(actionQueue, ChiBurst)
+        end
 
-        elseif IsAvailableInCombo(SpinningCraneKick) and timetocap > 2.5 and
+        if IsAvailableInCombo(SpinningCraneKick) and timetocap > 2.5 and
             (chi >= 3 or FoFCD > 6) and
             (chi >= 5 or FoFCD > 2)
         then
-            return SpinningCraneKick
-
-        elseif IsAvailableInCombo(BlackoutKick) and isFreeBlackout then
-            return BlackoutKick
-
-        elseif IsAvailableInCombo(RisingSunKick) then
-            return RisingSunKick
-
-        elseif isFistOfTheWhiteTigerKnown and IsReadyInCombo(FistOfTheWhiteTiger) and chimax - chi >= 3 then
-            return FistOfTheWhiteTiger
-
-        elseif IsReadyInCombo(TigerPalm) then
-            return TigerPalm
-
-        -- elseif IsAvailableInCombo(BlackoutKick) then
-        --     return BlackoutKick
-
+            push(actionQueue, SpinningCraneKick)
         end
+
+        if IsAvailableInCombo(BlackoutKick) and isFreeBlackout then
+            push(actionQueue, BlackoutKick)
+        end
+
+        if IsAvailableInCombo(RisingSunKick) then
+            push(actionQueue, RisingSunKick)
+        end
+
+        if isFistOfTheWhiteTigerKnown and IsReadyInCombo(FistOfTheWhiteTiger) and chimax - chi >= 3 then
+            push(actionQueue, FistOfTheWhiteTiger)
+        end
+
+        if IsReadyInCombo(TigerPalm) then
+            push(actionQueue, TigerPalm)
+        end
+
+        -- if IsAvailableInCombo(BlackoutKick) then
+        --     push(actionQueue, BlackoutKick)
+
+        -- end
 
     end
 
-    return function()
+    return function(...)
         if isAOE then
-            return WindwalkerMultiTarget()
+            return WindwalkerMultiTarget(...)
         else
-            return WindwalkerSingleTarget()
+            return WindwalkerSingleTarget(...)
         end
     end
 end
@@ -851,18 +903,31 @@ end
 local DecideCurrentAction = Retribution
 
 local _elapsed = 0
+local actionQueue = {}
+local wipe = table.wipe
 function NugReady_OnUpdate(self, time)
     _elapsed = _elapsed + time
-    if _elapsed < 0.1 then return end
+    if _elapsed < 0.3 then return end
 
+    wipe(actionQueue)
+    -- local spellID, condition = DecideCurrentAction(actionQueue)
+    DecideCurrentAction(actionQueue)
 
-    local spellID, condition = DecideCurrentAction()
-    if NugActionBar then NugActionBar:HighlightSpell(spellID) end
-    local texture = GetSpellTexture(spellID)
-    if condition then
-        self.text:SetText(condition)
+    -- if NugActionBar then NugActionBar:HighlightSpell(spellID) end
+    for i=1,3 do
+        local icon = self.icons[i]
+        local spellID = actionQueue[i]
+        if spellID then
+            icon:Show()
+            local texture = GetSpellTexture(spellID)
+            if condition then
+                icon.text:SetText(condition)
+            end
+            icon.icon:SetTexture(texture)
+        else
+            icon:Hide()
+        end
     end
-    self.icon:SetTexture(texture)
 end
 
 local MakeBorder = function(self, tex, left, right, top, bottom, level)
@@ -873,13 +938,12 @@ local MakeBorder = function(self, tex, left, right, top, bottom, level)
     return t
 end
 
-function NugReady.CreateIcon(self, parent)
-    -- local f = CreateFrame("Frame", nil, parent)
-    local f = self
+function NugReady.CreateIcon (self, parent)
+    local f = CreateFrame("Frame", nil, parent)
+    -- local f = self
     local width = 35
     local height = 35
     f:SetWidth(width); f:SetHeight(height);
-    f:SetPoint("CENTER","UIParent","CENTER",NugReadyDB.posX, NugReadyDB.posY)
 
     local icon = f:CreateTexture(nil, "ARTWORK")
     icon:SetTexCoord(.1, .9, .1, .9)
@@ -930,50 +994,48 @@ function NugReady.CreateIcon(self, parent)
         text:SetPoint("RIGHT", f, "LEFT", -10, 0)
         f.text = text
 
-
-    f:RegisterForDrag("LeftButton")
-    f:SetMovable(true)
-    f:EnableMouse(false)
-
-    f:SetScript("OnDragStart",function(self) self:StartMoving() end)
-    f:SetScript("OnDragStop",function(self)
-            self:StopMovingOrSizing();
-            _,_, NugReadyDB.point,  NugReadyDB.posX, NugReadyDB.posY = self:GetPoint(1)
-    end)
-
-    f:SetScript("OnUpdate", NugReady_OnUpdate)
-
     f:Hide()
 
     return f
 end
 
 function NugReady:CreateAnchor()
-    local f = CreateFrame("Frame","NugThreatAnchor",UIParent)
-    f:SetHeight(20)
-    f:SetWidth(20)
-    f:SetPoint("CENTER","UIParent","CENTER",NugReadyDB.posX, NugReadyDB.posY)
+    local f = CreateFrame("Frame","NugReadyAnchor",UIParent)
+    f:SetFrameStrata("HIGH")
+
+    f:SetHeight(24)
+    f:SetWidth(24)
+
+    -- While the toplevel draggable frame has high strata to avoid becoming unreachable,
+    -- this texture frame should appear below the unitframes
+    local tf = CreateFrame("Frame", nil, f)
+    tf:SetFrameStrata("BACKGROUND")
+    tf:SetAllPoints(f)
+
+    local t = tf:CreateTexture(nil,"BACKGROUND", nil, -5)
+    t:SetAtlas("ShipMissionIcon-Bonus-Map")
+    t:SetDesaturated(true)
+    t:SetVertexColor(0.8, 0.8, 0.8)
+    t:SetSize(30, 30)
+    t:SetPoint("CENTER", tf, "CENTER", 0, 0)
+
+    local t2 = tf:CreateTexture(nil,"BACKGROUND", nil, -4)
+    t2:SetAtlas("hud-microbutton-communities-icon-notification")
+    t2:SetSize(12, 12)
+    t2:SetVertexColor(1, 0.5, 0.5)
+    t2:SetPoint("CENTER", t, "CENTER", 0,0)
 
     f:RegisterForDrag("LeftButton")
     f:EnableMouse(true)
     f:SetMovable(true)
-    f:Hide()
-
-    local t = f:CreateTexture(f:GetName().."Icon1","BACKGROUND")
-    t:SetTexture("Interface\\Buttons\\UI-RadioButton")
-    t:SetTexCoord(0,0.25,0,1)
-    t:SetAllPoints(f)
-
-    t = f:CreateTexture(f:GetName().."Icon","BACKGROUND")
-    t:SetTexture("Interface\\Buttons\\UI-RadioButton")
-    t:SetTexCoord(0.25,0.49,0,1)
-    t:SetVertexColor(1, 0, 0)
-    t:SetAllPoints(f)
 
     f:SetScript("OnDragStart",function(self) self:StartMoving() end)
     f:SetScript("OnDragStop",function(self)
-            self:StopMovingOrSizing();
-            _,_, NugReadyDB.point,  NugReadyDB.x, NugReadyDB.y = self:GetPoint(1)
+        self:StopMovingOrSizing();
+        print("pre", self.san.point, self.san.x, self.san.y)
+        self.san.point, self.san.x, self.san.y = select(3,self:GetPoint(1))
+        print("stopdrag")
+        print(self.san.point, self.san.x, self.san.y)
     end)
     return f
 end
