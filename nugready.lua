@@ -120,7 +120,9 @@ function NugReady.ADDON_LOADED(self,event,arg1)
 end
 
 function NugReady:SPELL_UPDATE_COOLDOWN()
-    local start, duration = GetSpellCooldown(61304) -- Global Cooldown spell
+    -- local start, duration = GetSpellCooldown(61304) -- Global Cooldown spell
+
+    self:DisplayActionQueue()
 end
 
 
@@ -163,16 +165,32 @@ local function GetSpellCooldownNoCharge(spellID)
     return startTime, duration, enabled
 end
 
-local function GetCooldown(spellID)
+local function GetSpellCooldownWithCharge(spellID)
     local startTime, duration, enabled = GetSpellCooldown(spellID)
     local charges, maxCharges, chargeStart, chargeDuration = GetSpellCharges(spellID)
-    if charges and charges ~= maxCharges then
-        startTime = chargeStart
-        duration = chargeDuration
+    if charges then
+        if charges > 0 then
+            return 0, 0, 1
+        elseif charges and charges ~= maxCharges then
+            startTime = chargeStart
+            duration = chargeDuration
+        end
     end
+    return startTime, duration, enabled
+end
+
+local function GetCooldown(spellID)
+    local startTime, duration, enabled = GetSpellCooldownNoCharge(spellID)
     if duration == 0 then return 0 end
     local expirationTime = startTime + duration
-    return expirationTime - GetTime(), duration
+    return expirationTime - GetTime(), startTime, duration, enabled
+end
+
+local function GetCooldown2(spellID)
+    local startTime, duration, enabled = GetSpellCooldownWithCharge(spellID)
+    if duration == 0 then return 0 end
+    local expirationTime = startTime + duration
+    return expirationTime - GetTime(), startTime, duration, enabled
 end
 
 local GCDLeft = function()
@@ -203,6 +221,11 @@ local IsReadySpell = function(spellID)
 
     if remains <= GCD+0.05 then return true end
     return false
+end
+
+local IsReadySpellExact = function(spellID)
+    local startTime, duration, enabled = GetSpellCooldownWithCharge(spellID)
+    if duration == 0 then return true end
 end
 
 local IsReadySpell2 = function(spellID) -- Treats spells that still have charges as ready
@@ -665,12 +688,13 @@ end
 
 
 local KegSmash = 121253
-local BlackoutStrike = 205523
+local BlackoutKickBRM = 205523
 local BlackoutComboTalent = 196736
 local BlackoutCombo = 228563
 local RushingJadeWind = 116847
 local BreathOfFire = 115181
 local IronskinBrew = 115308
+local SpinningCraneKickBRM = 322729
 
 -- local return (1.5/(1+(UnitSpellHaste("player")/100)))
 
@@ -678,12 +702,13 @@ local function window(cd, pos, wlen)
     return cd > pos and cd < pos + wlen
 end
 
-local function BrewmasterBlackout()
+--[[
+local function BrewmasterBlackout(actionQueue)
     local IsBlackoutComboOn = GetBuff("player", BlackoutCombo)
     local energy = UnitPower("player")
     local maxenergy = UnitPowerMax("player")
     local KegSmashCD = GetCooldown(KegSmash)
-    local BlackoutStrikeCD = GetCooldown(BlackoutStrike)
+    local BlackoutKickBRMCD = GetCooldown(BlackoutKickBRM)
     local charges, maxcharges = GetSpellCharges(IronskinBrew)
     local haste = UnitSpellHaste("player")
     local regen = (100+haste)/10  -- energy per second
@@ -691,18 +716,18 @@ local function BrewmasterBlackout()
     local bscdlen = 3/(1+(haste/100))
     if timetocap < 0 then timetocap = 0 end
 
-    -- print(KegSmashCD - BlackoutStrikeCD)
+    -- print(KegSmashCD - BlackoutKickBRMCD)
 
     if IsBlackoutComboOn and KegSmashCD < 1.7 then
         return KegSmash
-    elseif not IsBlackoutComboOn and window(KegSmashCD, 1, 1) or window(KegSmashCD, 1+bscdlen, 1) and IsReadySpell(BlackoutStrike) then
-        return BlackoutStrike
-    -- elseif not IsBlackoutComboOn and KegSmashCD < 3 and (KegSmashCD - BlackoutStrikeCD > 0) then
-        -- return BlackoutStrike
+    elseif not IsBlackoutComboOn and window(KegSmashCD, 1, 1) or window(KegSmashCD, 1+bscdlen, 1) and IsReadySpell(BlackoutKickBRM) then
+        return BlackoutKickBRM
+    -- elseif not IsBlackoutComboOn and KegSmashCD < 3 and (KegSmashCD - BlackoutKickBRMCD > 0) then
+        -- return BlackoutKickBRM
     elseif IsReadySpell(KegSmash) then
         return KegSmash
-    -- elseif not IsBlackoutComboOn and IsReadySpell(BlackoutStrike) and energy < 70 then
-    --     return BlackoutStrike
+    -- elseif not IsBlackoutComboOn and IsReadySpell(BlackoutKickBRM) and energy < 70 then
+    --     return BlackoutKickBRM
     elseif IsBlackoutComboOn and IsReadySpell(BreathOfFire) then
         return BreathOfFire
     elseif IsAvailable(TigerPalm) then
@@ -720,51 +745,75 @@ local function BrewmasterBlackout()
         return 7812
     end
 end
-
+]]
 
 local LastTimeUsedRJW = 0
 
-local function Brewmaster()
-    local energy = UnitPower("player")
-    local haste = UnitSpellHaste("player")
-    local regen = (100+haste)/10  -- energy per second
+local function BrewmasterSetup()
+    RangeCheck:Configure(3, 205523) -- Blackout, 5yd melee, 3 targets
 
-    local KegSmashCD = GetCooldown(KegSmash)
-    -- local BlackoutCD = GetCooldown(BlackoutStrike)
-    -- local KegSmashCharges, KegSmashMaxCharges = GetSpellCharges(KegSmash)
-    -- local charges, maxcharges = GetSpellCharges(IronskinBrew)
+    local isChiBurstKnown = IsPlayerSpell(ChiBurst)
 
-    -- if LastUsedAbility == RushingJadeWind then
-    --     LastTimeUsedRJW = GetTime()
-    -- end
+    local function Brewmaster(actionQueue)
+        local energy = UnitPower("player")
+        local haste = UnitSpellHaste("player")
+        local regen = (100+haste)/10  -- energy per second
 
-    -- local isAOE = (LastTimeUsedRJW + 13 > GetTime())
+        local KegSmashCD = GetCooldown(KegSmash)
 
-    if IsReadySpell(KegSmash) then
-        return KegSmash
-    elseif IsAvailable(TigerPalm) and energy >= 75 then
-        return TigerPalm
-    elseif IsAvailable(BlackoutStrike) then
-        return BlackoutStrike
-    elseif IsAvailable(BreathOfFire) then
-        return BreathOfFire
-    elseif IsAvailable(RushingJadeWind) then
-        return RushingJadeWind
-    elseif IsAvailable(TigerPalm) then
-        local KSEnergyTime = ( 45 - (energy - 25) ) / regen
-        if KegSmashCD < KSEnergyTime then
-            return KegSmash
-        else
-            return TigerPalm
+        local Filler = isAOE and SpinningCraneKickBRM or TigerPalm
+
+        -- local BlackoutCD = GetCooldown(BlackoutKickBRM)
+        -- local KegSmashCharges, KegSmashMaxCharges = GetSpellCharges(KegSmash)
+        -- local charges, maxcharges = GetSpellCharges(IronskinBrew)
+
+        -- if LastUsedAbility == RushingJadeWind then
+        --     LastTimeUsedRJW = GetTime()
+        -- end
+
+        -- local isAOE = (LastTimeUsedRJW + 13 > GetTime())
+
+        if IsReadySpell2(KegSmash) then
+            push(actionQueue, KegSmash)
         end
 
-    -- elseif IsReadySpell(BreathOfFire) then
-        -- return BreathOfFire
-        -- elseif IsAvailable(RushingJadeWind) then
-            -- return RushingJadeWind
-    else
-        return 7812
+        if IsAvailable(BlackoutKickBRM) then
+            push(actionQueue, BlackoutKickBRM)
+        end
+
+        if IsAvailable(Filler) and energy >= 75 then
+            push(actionQueue, Filler)
+        end
+
+        if IsAvailable(BreathOfFire) then
+            push(actionQueue, BreathOfFire)
+        end
+
+        if IsAvailable(RushingJadeWind) then
+            push(actionQueue, RushingJadeWind)
+        end
+
+        if isChiBurstKnown and IsAvailable(ChiBurst) then
+            push(actionQueue, ChiBurst)
+        end
+
+        if IsAvailable(Filler) then
+            local KSEnergyTime = ( 45 - (energy - 25) ) / regen
+            if KegSmashCD < KSEnergyTime then
+                push(actionQueue, KegSmash)
+            else
+                push(actionQueue, Filler)
+            end
+        end
+
+
+        -- elseif IsReadySpell(BreathOfFire) then
+            -- push(actionQueue, BreathOfFire)
+            -- elseif IsAvailable(RushingJadeWind) then
+                -- push(actionQueue, RushingJadeWind)
     end
+
+    return Brewmaster
 end
 
 local Zeal = 217020
@@ -914,16 +963,35 @@ function NugReady_OnUpdate(self, time)
     DecideCurrentAction(actionQueue)
 
     -- if NugActionBar then NugActionBar:HighlightSpell(spellID) end
+
+    NugReady:DisplayActionQueue()
+end
+
+function NugReady:DisplayActionQueue()
     for i=1,3 do
         local icon = self.icons[i]
         local spellID = actionQueue[i]
         if spellID then
+            -- local startTime, duration, enabled = GetSpellCooldownWithCharge(spellID)
+            local cdLeft, startTime, duration, enabled = GetCooldown2(spellID)
+
             icon:Show()
             local texture = GetSpellTexture(spellID)
             if condition then
                 icon.text:SetText(condition)
             end
             icon.icon:SetTexture(texture)
+
+            -- print(spellID, startTime, duration, enabled)
+            if cdLeft == 0 or cdLeft <= GCDLeft() then
+                icon:SetAlpha(1)
+                icon.cd:Hide()
+            else
+
+                icon.cd:Show()
+                icon.cd:SetCooldown(startTime, duration)
+                icon:SetAlpha(0.5)
+            end
         else
             icon:Hide()
         end
@@ -953,6 +1021,16 @@ function NugReady.CreateIcon (self, parent)
     icon:SetPoint("TOP", 0, 0)
     icon:SetPoint("LEFT", 0, 0)
     f.icon = icon
+
+    local cd = CreateFrame("Cooldown",nil,f, "CooldownFrameTemplate")
+    cd.noCooldownCount = true -- disable OmniCC for this cooldown
+    cd:SetEdgeTexture("Interface\\Cooldown\\edge");
+    cd:SetSwipeColor(0, 0, 0);
+    cd:SetDrawEdge(true);
+    cd:SetHideCountdownNumbers(true);
+    cd:SetAllPoints(f)
+    cd:Hide()
+    f.cd = cd
 
     -- local cross = f:CreateTexture(nil, "ARTWORK", nil, 1)
     -- cross:SetTexture[[Interface\PetBattles\DeadPetIcon]]--[[Interface\AddOns\NugReady\cross]]
@@ -1059,11 +1137,12 @@ function NugReady:SPELLS_CHANGED()
         if spec == 3 then
             DecideCurrentAction = WindwalkerSetup()
         elseif spec == 1 then
-            if IsPlayerSpell(196736) then
-                DecideCurrentAction = BrewmasterBlackout
-            else
-                DecideCurrentAction = Brewmaster
-            end
+            DecideCurrentAction = BrewmasterSetup()
+            -- if IsPlayerSpell(196736) then
+            --     DecideCurrentAction = BrewmasterBlackout
+            -- else
+            --     DecideCurrentAction = Brewmaster
+            -- end
         else
             self.disabled = true
             self:Hide()
