@@ -333,7 +333,7 @@ local function FurySetup()
 
     local execute_range = IsPlayerSpell(206315) and 0.35 or 0.2 -- Massacre
 
-    return function()
+    return function(actionQueue)
         local isEnraged = IsEnraged()
         local IsWhirlwindBuffOn = FindAura("player", WhirlwindBuff, "HELPFUL")
 
@@ -352,41 +352,32 @@ local function FurySetup()
 
         local isAOE = (LastTimeWhirlwindWasPresent + 5 > GetTime())
 
-        -- local isWreckingBallOn = (GetBuff("player", 215570) ~= nil)
-
-
-        -- local startTime, duration, enabled = GetSpellCooldown(RagingBlow)
-        -- local charges, maxCharges, chargeStart, chargeDuration = GetSpellCharges(RagingBlow)
-        -- local startTime1, duration1, enabled1 = GetSpellCooldownNoCharge(RagingBlow)
-        -- print("-------------------------------------------")
-        -- print("GetSpellCooldown", startTime, duration, enabled )
-        -- print("GetSpellCooldownNoCharge", startTime1, duration1, enabled1 )
-        -- print("GetSpellCharges", charges, maxCharges, chargeStart, chargeDuration )
-
-
-
-        -- if IsAvailable(DragonRoar) then
-            -- return DragonRoar
-        -- else
-        -- print(IsUsableSpell(280735), IsAvailable(280735), isEnraged)
-        -- if IsAvailable(Rampage) and (not isEnraged or rage == 100) then
         if isAOE and not IsWhirlwindBuffOn then
-            return Whirlwind
-        elseif IsAvailable(Rampage) then
-            return Rampage
-        elseif isExecutePhase and IsAvailable(FuryExecute) then
-            return FuryExecute
-        elseif not isEnraged and IsReadySpell(Bloodthirst) then
-            return Bloodthirst
-        elseif IsAvailable(FuryExecute) and isEnraged then
-            return FuryExecute
-        elseif IsAvailable(Bloodthirst) then
-            return Bloodthirst
-        elseif IsAvailable2(RagingBlow) then
-            return RagingBlow
-            -- return FuriousSlash
-        else
-            return 7812
+            push(actionQueue, Whirlwind)
+        end
+
+        if IsAvailable(Rampage) then
+            push(actionQueue, Rampage)
+        end
+
+        if isExecutePhase and IsAvailable(FuryExecute) then
+            push(actionQueue, FuryExecute)
+        end
+
+        if not isEnraged and IsReadySpell(Bloodthirst) then
+            push(actionQueue, Bloodthirst)
+        end
+
+        if IsAvailable(FuryExecute) and isEnraged then
+            push(actionQueue, FuryExecute)
+        end
+
+        if IsAvailable(Bloodthirst) then
+            push(actionQueue, Bloodthirst)
+        end
+
+        if IsAvailable2(RagingBlow) then
+            push(actionQueue, RagingBlow)
         end
     end
 end
@@ -400,22 +391,26 @@ local Slam = 1464
 local Rend = 772
 local Skullsplitter = 260643
 local Overpower = 7384
+local DeepWounds = 262115
 
 local function ArmsSetup()
-    -- local _, FocusedRageStacks = GetBuff("player", FocusedRage)
-    -- local MortalStrikeCooldown = GetCooldown(MortalStrike)
-
     local execute_range = IsPlayerSpell(281001) and 0.35 or 0.2 -- Arms Massacre
     local isRendKnown = IsPlayerSpell(Rend)
     local isSkullsplitterKnown = IsPlayerSpell(Skullsplitter)
-    local MortalStrikeCooldown = GetCooldown(MortalStrike)
+    local FervorOfBattle = 202316
+    local isFervorOfBattleKnown = IsPlayerSpell(FervorOfBattle)
+    local RageDump = Slam
+    if isFervorOfBattleKnown then
+        RageDump = Whirlwind
+    end
 
-    return function()
+    return function(actionQueue)
 
         -- local IsColossusSmashApplied = false
-        local _, ExecutionerPrecision = GetBuff("player", 272870)
         local _, OverpowerBuff = GetBuff("player", Overpower)
-        local RendRemains = 0
+        local RendRemains = 999
+        local DeepWoundsRemains = 999
+        local MortalStrikeCooldown = GetCooldown(MortalStrike)
 
         local rage = UnitPower("player")
 
@@ -425,6 +420,8 @@ local function ArmsSetup()
             -- IsColossusSmashApplied = GetDebuff("target", 208086) or 0 > 1.5
             if isRendKnown then RendRemains = GetDebuff("target", Rend) or 0 end
 
+            DeepWoundsRemains = GetDebuff("target", DeepWounds) or 0
+
             local h, hm = UnitHealth("target"), UnitHealthMax("target")
             if hm == 0 then hm = 1 end
             isExecutePhase = h/hm < execute_range
@@ -433,34 +430,42 @@ local function ArmsSetup()
 
 
         if isRendKnown and RendRemains < 4 and not ExecutePhase then
-            return Rend
-        elseif isSkullsplitterKnown and IsAvailable(Skullsplitter) and rage < 60 then
-            return Skullsplitter
-        elseif IsAvailable(ColossusSmash) then
-            return ColossusSmash
-        -- elseif IsAvailable(Warbreaker) and not IsColossusSmashApplied then
-        --     return Warbreaker
-        elseif IsAvailable(Execute) and not isExecutePhase and MortalStrikeCooldown > GCD + 0.1 then -- Sudden Death
-            return Execute
+            push(actionQueue, Rend)
+        end
 
-        elseif not isExecutePhase and IsAvailable(MortalStrike) then
-            return MortalStrike
+        if IsAvailable(ColossusSmash) then
+            push(actionQueue, ColossusSmash)
+        end
 
-        --- Crushing Assault here
-        ---
-        elseif isExecutePhase and IsReadySpell(MortalStrike) and OverpowerBuff >= 2 or ExecutionerPrecision >= 2 then
-            return MortalStrike
+        if isSkullsplitterKnown and IsAvailable(Skullsplitter) and rage < 60 then
+            push(actionQueue, Skullsplitter)
+        end
 
-        elseif IsAvailable(Execute) then
-            return Execute
+        if IsAvailable(MortalStrike) and DeepWoundsRemains < 4 then
+            push(actionQueue, MortalStrike)
+        end
 
-        elseif IsAvailable(Overpower) then
-            return Overpower
+        if IsReadySpell2(Overpower) then -- for Dreadnought
+            push(actionQueue, Overpower)
+        end
 
-        elseif not isExecutePhase and IsAvailable(Slam) and rage >= 70 then
-            return Slam
-        else
-            return 7812
+        -- if IsAvailable(Execute) and not isExecutePhase and MortalStrikeCooldown > GCDLeft() + 0.1 then -- Sudden Death
+        --     push(actionQueue, Execute)
+        -- end
+        if IsAvailable(Execute) then
+            push(actionQueue, Execute)
+        end
+
+        if not isExecutePhase and IsAvailable(MortalStrike) then
+            push(actionQueue, MortalStrike)
+        end
+
+        -- if isExecutePhase and IsReadySpell(MortalStrike) and OverpowerBuff >= 2 then
+        --     push(actionQueue, MortalStrike)
+        -- end
+
+        if not isExecutePhase and IsAvailable(RageDump) and rage >= 55 then
+            push(actionQueue, RageDump)
         end
     end
 end
@@ -472,6 +477,7 @@ local TigerPalm = 100780
 local RisingSunKick = 107428
 local BlackoutKick = 100784
 local ChiBurst = 123986
+local ChiWave = 115098
 local ExpelHarm = 322101
 local SpinningCraneKick = 101546
 local DanceOfChiJi = 325202
@@ -503,6 +509,7 @@ local function WindwalkerSetup()
     local isExpelHarmKnown = IsPlayerSpell(ExpelHarm)
     local isConcentratedFlameKnown = IsPlayerSpell(ConcentratedFlame)
     local ExpelHarmHealthThreshold = 0.95
+    local isChiWaveKnown = IsPlayerSpell(ChiWave)
     RangeCheck:Configure(3, 113656) -- FoF, 8 yards
 
     local WindwalkerSingleTarget = function(actionQueue)
@@ -569,6 +576,10 @@ local function WindwalkerSetup()
             (isFreeBlackout or not FOFSoon or chi >= 4)
         then
             push(actionQueue, BlackoutKick)
+        end
+
+        if isChiWaveKnown and IsAvailableInCombo(ChiWave) then
+            push(actionQueue, ChiWave)
         end
 
         if IsReadyInCombo(TigerPalm) and chimax - chi >= 2 then  -- to prioritize spending move below blackout kick
